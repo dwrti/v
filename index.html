@@ -3,105 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الفيديو أوفلاين</title>
+    <title>صفحة تعمل بدون إنترنت</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f4f4f4; }
-        video { width: 100%; max-width: 600px; border-radius: 10px; background: #000; }
-        #status { margin: 20px; color: #555; }
-        button { padding: 15px 25px; font-size: 16px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; }
-        button:disabled { background: #ccc; }
-        .progress-bar { width: 100%; max-width: 600px; height: 10px; background: #ddd; margin: 10px auto; display: none; }
-        #progress { height: 100%; background: #007bff; width: 0%; }
+        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f4f9; }
+        #status-bar {
+            display: none; padding: 10px; background: #e74c3c; color: white;
+            position: fixed; top: 0; width: 100%; left: 0; font-weight: bold;
+        }
+        .card { background: white; padding: 20px; border-radius: 10px; shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }
     </style>
 </head>
 <body>
 
-    <h2>مشغل الفيديو الذكي (بدون نت)</h2>
-    
-    <video id="videoPlayer" controls poster="https://via.placeholder.com/600x340?text=Video+Player"></video>
-    
-    <div id="status">الفيديو غير محمل في الذاكرة.</div>
-    
-    <div class="progress-bar" id="progressBar"><div id="progress"></div></div>
-    
-    <button id="downloadBtn">تحميل الفيديو للمشاهدة بدون إنترنت</button>
+    <div id="status-bar">أنت الآن تعمل بدون اتصال بالإنترنت (Offline)</div>
+
+    <div class="card">
+        <h1>مرحباً بك!</h1>
+        <p>هذه الصفحة ستبقى تعمل معك حتى لو أغلقت الواي فاي.</p>
+        <p id="net-info">حالة الاتصال الحالية: <b>متصل ✅</b></p>
+    </div>
 
     <script>
-        const VIDEO_URL = 'رابط_الفيديو_هنا.mp4'; // ضع رابط الفيديو المباشر هنا
-        const DB_NAME = "VideoStore";
-        const STORE_NAME = "videos";
-        let db;
-
-        // 1. فتح قاعدة البيانات
-        const request = indexedDB.open(DB_NAME, 1);
-        request.onupgradeneeded = e => {
-            e.target.result.createObjectStore(STORE_NAME);
-        };
-        request.onsuccess = e => {
-            db = e.target.result;
-            checkIfVideoExists();
-        };
-
-        // 2. التحقق هل الفيديو موجود مسبقاً؟
-        function checkIfVideoExists() {
-            const transaction = db.transaction([STORE_NAME], "readonly");
-            const getRequest = transaction.objectStore(STORE_NAME).get("mainVideo");
-            getRequest.onsuccess = () => {
-                if (getRequest.result) {
-                    displayVideo(getRequest.result);
-                    document.getElementById('status').innerText = "✅ الفيديو محمل وجاهز للمشاهدة بدون نت.";
-                    document.getElementById('downloadBtn').innerText = "تحديث الفيديو (تحميل مرة أخرى)";
-                }
-            };
+        // 1. تسجيل الـ Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('تم التسجيل بنجاح'))
+                .catch(err => console.log('فشل التسجيل', err));
+            });
         }
 
-        // 3. تحميل الفيديو وحفظه
-        document.getElementById('downloadBtn').onclick = async () => {
-            const btn = document.getElementById('downloadBtn');
-            const progressDiv = document.getElementById('progressBar');
-            const progressFill = document.getElementById('progress');
-            
-            btn.disabled = true;
-            progressDiv.style.display = 'block';
-            document.getElementById('status').innerText = "جاري التحميل... يرجى عدم إغلاق الصفحة";
+        // 2. كود مراقبة حالة الإنترنت
+        const statusBar = document.getElementById('status-bar');
+        const netInfo = document.querySelector('#net-info b');
 
-            try {
-                const response = await fetch(VIDEO_URL);
-                const reader = response.body.getReader();
-                const contentLength = +response.headers.get('Content-Length');
-                
-                let receivedLength = 0;
-                let chunks = []; 
-                
-                while(true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-                    chunks.push(value);
-                    receivedLength += value.length;
-                    let step = (receivedLength / contentLength) * 100;
-                    progressFill.style.width = step + '%';
-                }
-
-                const blob = new Blob(chunks);
-                const transaction = db.transaction([STORE_NAME], "readwrite");
-                transaction.objectStore(STORE_NAME).put(blob, "mainVideo");
-
-                transaction.oncomplete = () => {
-                    displayVideo(blob);
-                    document.getElementById('status').innerText = "✅ تم الحفظ! جرب الآن إغلاق النت وتحديث الصفحة.";
-                    btn.disabled = false;
-                };
-            } catch (error) {
-                alert("خطأ في التحميل: تأكد من الرابط أو اتصالك.");
-                btn.disabled = false;
+        function updateStatus() {
+            if (navigator.onLine) {
+                statusBar.style.display = 'none';
+                netInfo.innerHTML = 'متصل ✅';
+                netInfo.style.color = 'green';
+            } else {
+                statusBar.style.display = 'block';
+                netInfo.innerHTML = 'غير متصل ❌';
+                netInfo.style.color = 'red';
             }
-        };
-
-        // 4. عرض الفيديو من الذاكرة
-        function displayVideo(blob) {
-            const videoUrl = URL.createObjectURL(blob);
-            document.getElementById('videoPlayer').src = videoUrl;
         }
+
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
     </script>
 </body>
 </html>
