@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VHS Master - Offline Ready</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root { 
+            --frame-color: #1e1e1e;
+            --deck-color: #121212;
+            --led-green: #00ff41;
+            --screen-bg: #0000ff;
+        }
+        
+        body { 
+            background-color: #0a0a0a; 
+            font-family: 'Courier New', monospace; 
+            display: flex; flex-direction: column; align-items: center; 
+            margin: 0; padding: 20px; color: white;
+        }
+
+        .setup-container { width: 100%; max-width: 550px; }
+
+        .pro-monitor {
+            background: var(--frame-color);
+            padding: 20px; border-radius: 10px; border: 4px solid #333;
+            box-shadow: 0 0 50px rgba(0,0,0,0.9); position: relative;
+        }
+
+        .screen-bezel {
+            background: #000; padding: 15px; border-radius: 5px;
+            border: 2px solid #111; position: relative; overflow: hidden;
+            aspect-ratio: 16 / 9;
+        }
+
+        video { width: 100%; height: 100%; object-fit: cover; z-index: 2; position: relative; }
+
+        .crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none; z-index: 3; opacity: 0.6;
+        }
+
+        #error-message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #eee; font-size: 24px; text-align: center; font-weight: bold; z-index: 1;
+        }
+
+        .vhs-deck {
+            background: var(--deck-color); margin-top: 20px;
+            border-radius: 5px; padding: 25px; border: 1px solid #333;
+            border-bottom: 8px solid #000; box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+        }
+
+        .deck-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+
+        .vfd-display {
+            background: #051a05; color: var(--led-green); padding: 8px 15px;
+            border: 2px solid #222; border-radius: 3px; font-size: 13px;
+            box-shadow: inset 0 0 10px #000; text-shadow: 0 0 5px var(--led-green);
+        }
+
+        .cassette-slot-outer {
+            background: #000; border: 2px solid #333; height: 55px;
+            display: flex; align-items: center; padding: 0 15px;
+            margin-bottom: 20px; position: relative; box-shadow: inset 0 5px 15px #000;
+        }
+
+        input {
+            width: 100%; background: transparent; border: none;
+            color: var(--led-green); font-family: 'Courier New', monospace;
+            font-size: 16px; outline: none;
+        }
+
+        .deck-buttons { display: flex; gap: 12px; }
+
+        button {
+            flex: 1; padding: 12px; border-radius: 4px; border: 1px solid #444;
+            background: linear-gradient(180deg, #333 0%, #1a1a1a 100%);
+            color: #ddd; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 0 #000; font-size: 11px; transition: 0.1s;
+        }
+
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #000; }
+        button.eject-btn { color: #ff8888; border-color: #633; }
+    </style>
+</head>
+<body>
+
+<div class="setup-container">
+    <div class="pro-monitor">
+        <div class="screen-bezel">
+            <div class="crt-overlay"></div>
+            <div id="error-message">NO SIGNAL<br>OFFLINE MODE</div>
+            <video id="video" controls playsinline muted></video>
+        </div>
+    </div>
+
+    <div class="vhs-deck">
+        <div class="deck-header">
+            <div class="vfd-display" id="connectionStatus">CHECKING...</div>
+            <div class="vfd-display">LIVE: <span id="count">0</span></div>
+        </div>
+        
+        <div class="cassette-slot-outer">
+            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
+        </div>
+        
+        <div class="deck-buttons">
+            <button onclick="updateDB()">▶ PLAY / SYNC</button>
+            <button class="eject-btn" onclick="clearDB()">⏏ EJECT TAPE</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* --- منطق الـ Offline الذكي --- */
+    // حفظ الصفحة للعمل بدون نت عند التحديث
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            const swSource = `
+                const cacheName = 'vhs-v2';
+                self.addEventListener('install', e => {
+                    e.waitUntil(caches.open(cacheName).then(cache => cache.addAll([location.href])));
+                });
+                self.addEventListener('fetch', e => {
+                    e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+                });
+            `;
+            const blob = new Blob([swSource], {type: 'application/javascript'});
+            navigator.serviceWorker.register(URL.createObjectURL(blob));
+        });
+    }
+
+    /* --- كود Firebase الأصلي --- */
+    const passwordSecret = "1234"; 
+    let isAuthorized = false;
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
+
+    // التحقق من حالة الإنترنت لتجنب تعليق الكود
+    if (navigator.onLine) {
+        firebase.initializeApp(firebaseConfig);
+        startFirebase();
+    } else {
+        document.getElementById('connectionStatus').innerText = "SYSTEM: OFFLINE";
+        document.getElementById('connectionStatus').style.color = "orange";
+    }
+
+    function startFirebase() {
+        const database = firebase.database();
+        const syncRef = database.ref('videoSync');
+        const presenceRef = database.ref('viewers');
+        const video = document.getElementById('video');
+        const urlInput = document.getElementById('videoUrl');
+        const statusBadge = document.getElementById('connectionStatus');
+        const countDisplay = document.getElementById('count');
+        const errorMessage = document.getElementById('error-message');
+        
+        let hls = new Hls();
+        let isRemoteChange = false; 
+
+        database.ref('.info/connected').on('value', (snap) => {
+            if (snap.val() === true) {
+                statusBadge.innerText = "SYSTEM: ONLINE";
+                statusBadge.style.color = "var(--led-green)";
+            } else {
+                statusBadge.innerText = "SYSTEM: OFFLINE";
+                statusBadge.style.color = "orange";
+            }
+        });
+
+        presenceRef.on('value', snap => countDisplay.innerText = snap.numChildren());
+
+        syncRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data || !data.url) {
+                video.style.display = "none";
+                errorMessage.style.display = "block";
+                return;
+            }
+            video.style.display = "block";
+            errorMessage.style.display = "none";
+            isRemoteChange = true;
+            if (data.url && video.src !== data.url && !video.src.includes(data.url)) {
+                loadVideo(data.url);
+            }
+            if (Math.abs(video.currentTime - data.currentTime) > 2.0) video.currentTime = data.currentTime;
+            data.isPlaying ? video.play().catch(()=>{} ) : video.pause();
+            setTimeout(() => { isRemoteChange = false; }, 500);
+        });
+
+        // دوال التحديث (مدمجة داخل النطاق)
+        window.updateDB = () => {
+            if (!isAuthorized) { alert("WRONG CODE"); return; }
+            if (urlInput.value.trim()) syncRef.set({ url: urlInput.value.trim(), currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+        };
+        window.clearDB = () => { if (isAuthorized && confirm("EJECT?")) syncRef.set(null); };
+    }
+
+    // منطق كلمة السر
+    document.getElementById('videoUrl').addEventListener('input', (e) => {
+        if (!isAuthorized && e.target.value === passwordSecret) {
+            isAuthorized = true;
+            e.target.value = ""; e.target.type = "text"; 
+            e.target.placeholder = "PASTE URL HERE";
+            document.getElementById('connectionStatus').innerText = "SYSTEM: ADMIN";
+        }
+    });
+
+    function loadVideo(url) {
+        const video = document.getElementById('video');
+        if (url.includes('.m3u8')) {
+            const hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+        } else { video.src = url; }
+    }
+</script>
+</body>
+</html>
