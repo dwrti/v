@@ -84,49 +84,38 @@
     let hls = new Hls();
     let ignoreUpdates = false;
 
-    // وظيفة تفعيل وضع الأدمن
     function activateAdminMode() {
         isAuthorized = true;
-        localStorage.setItem('vhs_admin', 'true'); // حفظ الحالة
+        localStorage.setItem('vhs_admin', 'true');
         urlInput.value = ""; 
         urlInput.type = "text"; 
         urlInput.placeholder = "PASTE LINK";
         statusBadge.innerText = "STATUS: ADMIN MODE";
-        logoutBtn.style.display = "block"; // إظهار زر تسجيل الخروج
+        logoutBtn.style.display = "block";
     }
 
-    // التحقق عند تحميل الصفحة إذا كان الأدمن مسجلاً مسبقاً
     if (localStorage.getItem('vhs_admin') === 'true') {
         activateAdminMode();
     }
 
-    // تسجيل الخروج
     function adminLogout() {
         isAuthorized = false;
         localStorage.removeItem('vhs_admin');
-        urlInput.type = "password";
-        urlInput.placeholder = "ENTER ACCESS CODE";
-        urlInput.value = "";
-        statusBadge.innerText = "STATUS: SYNCED";
-        logoutBtn.style.display = "none";
-        location.reload(); // إعادة تحميل لتنظيف الحالة
+        location.reload();
     }
 
-    // الدخول كأدمن عبر الإدخال
     urlInput.addEventListener('input', () => {
         if (!isAuthorized && urlInput.value === passwordSecret) {
             activateAdminMode();
         }
     });
 
-    // عداد المتواجدين
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // استقبال المزامنة اللحظي
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
@@ -136,11 +125,19 @@
             return;
         }
 
+        // إظهار الفيديو للأدمن والمشاهد
         video.style.display = 'block';
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
 
-        if (isAuthorized && !ignoreUpdates) return;
+        // إذا كان الأدمن هو من يتلقى التحديث، لا نطبق التحديثات الزمنية عليه لمنع التقطيع
+        // لكن نسمح له باستقبال الرابط إذا كان الرابط جديداً تماماً ولم يتم تحميله بعد
+        if (isAuthorized && !ignoreUpdates) {
+             if (video.src !== data.url && !video.src.includes(data.url)) {
+                loadVideo(data.url);
+             }
+             return;
+        }
 
         ignoreUpdates = true;
 
@@ -180,20 +177,40 @@
     function loadVideo(url) {
         hls.destroy();
         if (url.includes('.m3u8')) {
-            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
-        } else { video.src = url; }
+            hls = new Hls(); 
+            hls.loadSource(url); 
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        } else { 
+            video.src = url; 
+            video.play().catch(() => {});
+        }
     }
 
     function updateDB() {
         if (!isAuthorized) return alert("ENTER CODE");
         const val = urlInput.value.trim();
         if (val) {
-            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+            // حل المشكلة: نقوم بتحميل الفيديو للأدمن يدوياً فور الضغط على الزر
+            loadVideo(val);
+            video.style.display = 'block';
+            
+            syncRef.set({ 
+                url: val, 
+                currentTime: 0, 
+                isPlaying: true, 
+                lastUpdated: Date.now() 
+            });
         }
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) syncRef.set(null);
+        if (isAuthorized && confirm("EJECT?")) {
+            syncRef.set(null);
+            video.pause();
+            video.src = "";
+            video.style.display = 'none';
+        }
     }
 </script>
 </body>
