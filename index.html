@@ -3,95 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل IPTV الذكي</title>
+    <title>IPTV Player</title>
     <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f0f; color: white; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 300px; background: #1e1e1e; display: flex; flex-direction: column; border-left: 1px solid #333; }
-        #search-box { padding: 15px; background: #252525; }
-        #search-box input { width: 100%; padding: 10px; border-radius: 5px; border: none; background: #333; color: white; box-sizing: border-box; }
-        #channel-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
-        #channel-list li { padding: 12px 15px; border-bottom: 1px solid #2a2a2a; cursor: pointer; font-size: 14px; transition: 0.2s; }
-        #channel-list li:hover { background: #3d3d3d; }
-        #main-player { flex: 1; display: flex; flex-direction: column; justify-content: center; background: #000; }
-        .vjs-default-skin { width: 100% !important; height: 80% !important; }
-        .loading { text-align: center; padding: 20px; color: #ffcc00; }
+        body { font-family: sans-serif; background: #000; color: #fff; margin: 0; display: flex; height: 100vh; }
+        #sidebar { width: 250px; background: #111; display: flex; flex-direction: column; border-left: 1px solid #333; }
+        #search { padding: 10px; border: none; background: #222; color: #fff; margin: 10px; border-radius: 5px; }
+        #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+        #list li { padding: 10px; border-bottom: 1px solid #222; cursor: pointer; font-size: 13px; }
+        #list li:hover { background: #333; }
+        #player-container { flex: 1; position: relative; }
+        .video-js { width: 100% !important; height: 100% !important; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <div id="search-box">
-        <input type="text" id="filter" placeholder="بحث عن قناة...">
-    </div>
-    <ul id="channel-list">
-        <div class="loading">جاري تحميل القنوات...</div>
-    </ul>
+    <input type="text" id="search" placeholder="بحث عن قناة...">
+    <ul id="list"><li style="padding:20px;">جاري جلب القنوات...</li></ul>
 </div>
 
-<div id="main-player">
-    <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" data-setup='{}'>
-        <p class="vjs-no-js">للمشاهدة، يرجى تفعيل JavaScript</p>
-    </video>
+<div id="player-container">
+    <video id="vid" class="video-js vjs-default-skin" controls preload="auto"></video>
 </div>
 
 <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
 <script>
-    const m3uUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("http://easyip.xyz/get.php?username=sgD6wpYw&password=hUDaZru&type=m3u&output=ts");
-    const player = videojs('my-video');
-    let allChannels = [];
+    // الرابط المباشر الخاص بك
+    const rawUrl = "http://easyip.xyz/get.php?username=sgD6wpYw&password=hUDaZru&type=m3u&output=ts";
+    // استخدام بروكسي بديل لتجاوز حظر المتصفح
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(rawUrl);
 
-    // جلب وتحليل ملف M3U
-    async function fetchPlaylist() {
+    const player = videojs('vid');
+    let channels = [];
+
+    async function load() {
         try {
-            const response = await fetch(m3uUrl);
-            const data = await response.text();
-            parseM3U(data);
-        } catch (error) {
-            document.getElementById('channel-list').innerHTML = '<div class="loading">خطأ في التحميل. تأكد من اتصالك.</div>';
-        }
-    }
+            const res = await fetch(proxyUrl);
+            const text = await res.text();
+            const lines = text.split('\n');
+            const list = document.getElementById('list');
+            list.innerHTML = '';
 
-    function parseM3U(data) {
-        const lines = data.split('\n');
-        const listElement = document.getElementById('channel-list');
-        listElement.innerHTML = '';
-        
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].startsWith('#EXTINF')) {
-                const name = lines[i].split(',')[1] || "قناة غير معروفة";
-                const url = lines[i + 1]?.trim();
-                if (url && url.startsWith('http')) {
-                    allChannels.push({ name, url });
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('#EXTINF')) {
+                    const name = lines[i].split(',')[1] || "Unknown";
+                    const url = lines[i+1]?.trim();
+                    if (url) {
+                        channels.push({ name, url });
+                        const li = document.createElement('li');
+                        li.textContent = name;
+                        li.onclick = () => {
+                            player.src({ src: url, type: 'application/x-mpegURL' });
+                            player.play();
+                        };
+                        list.appendChild(li);
+                    }
                 }
             }
+        } catch (e) {
+            document.getElementById('list').innerHTML = '<li style="color:red">فشل التحميل. جرب فتح الرابط من جهاز آخر أو تأكد من الاشتراك.</li>';
         }
-        displayChannels(allChannels);
     }
 
-    function displayChannels(channels) {
-        const listElement = document.getElementById('channel-list');
-        listElement.innerHTML = '';
-        channels.forEach(ch => {
-            const li = document.createElement('li');
-            li.textContent = ch.name;
-            li.onclick = () => {
-                player.src({ src: ch.url, type: 'application/x-mpegURL' });
-                player.play();
-            };
-            listElement.appendChild(li);
+    document.getElementById('search').oninput = (e) => {
+        const val = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('#list li');
+        items.forEach(li => {
+            li.style.display = li.textContent.toLowerCase().includes(val) ? '' : 'none';
         });
-    }
+    };
 
-    // خاصية البحث
-    document.getElementById('filter').addEventListener('input', (e) => {
-        const text = e.target.value.toLowerCase();
-        const filtered = allChannels.filter(ch => ch.name.toLowerCase().includes(text));
-        displayChannels(filtered);
-    });
-
-    fetchPlaylist();
+    load();
 </script>
-
 </body>
 </html>
