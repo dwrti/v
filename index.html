@@ -23,12 +23,25 @@
         #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
         .users-count { color: var(--led-green); }
-        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; }
+        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; position: relative; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
         .buttons { display: flex; gap: 10px; }
         button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
         button:active { background: #333; }
         button.eject { flex: 1; color: var(--led-red); }
+        
+        /* زر تسجيل الخروج الجديد */
+        #logoutBtn { 
+            display: none; 
+            position: absolute; 
+            left: 5px; 
+            background: #442222; 
+            border: 1px solid #663333; 
+            color: #ffaaaa; 
+            padding: 2px 5px; 
+            font-size: 8px; 
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -47,6 +60,7 @@
             <span class="users-count">REC ● <span id="count">0</span></span>
         </div>
         <div class="slot">
+            <button id="logoutBtn" onclick="logout()">LOGOUT</button>
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         <div class="buttons">
@@ -75,18 +89,47 @@
     const urlInput = document.getElementById('videoUrl');
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
+    const logoutBtn = document.getElementById('logoutBtn');
     
     const passwordSecret = "1234";
     let isAuthorized = false;
     let hls = new Hls();
     let ignoreUpdates = false;
 
+    // دالة تفعيل وضع الأدمن
+    function setAdminMode() {
+        isAuthorized = true;
+        localStorage.setItem('vhs_admin', 'true'); // حفظ الحالة
+        urlInput.value = ""; 
+        urlInput.type = "text"; 
+        urlInput.placeholder = "PASTE LINK";
+        statusBadge.innerText = "STATUS: ADMIN MODE";
+        logoutBtn.style.display = "block"; // إظهار زر تسجيل الخروج
+    }
+
+    // التحقق من الجلسة السابقة عند التحميل
+    window.onload = () => {
+        if (localStorage.getItem('vhs_admin') === 'true') {
+            setAdminMode();
+        }
+    };
+
+    // تسجيل الخروج
+    function logout() {
+        isAuthorized = false;
+        localStorage.removeItem('vhs_admin');
+        logoutBtn.style.display = "none";
+        urlInput.type = "password";
+        urlInput.placeholder = "ENTER ACCESS CODE";
+        urlInput.value = "";
+        statusBadge.innerText = "STATUS: SYNCED";
+        location.reload(); // إعادة تحميل الصفحة للعودة لوضع المشاهد
+    }
+
     // الدخول كأدمن
     urlInput.addEventListener('input', () => {
         if (!isAuthorized && urlInput.value === passwordSecret) {
-            isAuthorized = true;
-            urlInput.value = ""; urlInput.type = "text"; urlInput.placeholder = "PASTE LINK";
-            statusBadge.innerText = "STATUS: ADMIN MODE";
+            setAdminMode();
         }
     });
 
@@ -102,7 +145,7 @@
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
-            statusBadge.innerText = "STATUS: NO SIGNAL";
+            statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
             statusBadge.classList.remove('online');
             return;
         }
@@ -111,7 +154,6 @@
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
 
-        // إذا كنت أنا الأدمن الذي يرسل، لا استقبل تحديثاتي الخاصة لتجنب التقطيع
         if (isAuthorized && !ignoreUpdates) return;
 
         ignoreUpdates = true;
@@ -120,7 +162,6 @@
             loadVideo(data.url);
         }
 
-        // تقليل الفارق المسموح به إلى 0.5 ثانية لمزامنة أدق
         if (Math.abs(video.currentTime - data.currentTime) > 0.5) {
             video.currentTime = data.currentTime;
         }
@@ -141,12 +182,10 @@
         });
     }
 
-    // رصد كل الحركات
     video.addEventListener('play', syncAction);
     video.addEventListener('pause', syncAction);
     video.addEventListener('seeking', syncAction);
 
-    // تحديث الوقت كل ثانية واحدة لضمان عدم وجود أي انحراف (Drift)
     setInterval(() => {
         if (isAuthorized && !video.paused && !ignoreUpdates) {
             syncRef.update({ currentTime: video.currentTime });
