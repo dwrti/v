@@ -51,7 +51,6 @@
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         <div id="adminPanel" class="admin-controls">
-            <button onclick="updateDB()">SYNC BROADCAST</button>
             <button class="eject" onclick="clearDB()">EJECT</button>
             <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
         </div>
@@ -89,7 +88,7 @@
         localStorage.setItem('vhs_admin', 'true');
         urlInput.value = ""; 
         urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE LINK";
+        urlInput.placeholder = "PASTE LINK TO SYNC";
         statusBadge.innerText = "STATUS: ADMIN MODE";
         adminPanel.style.display = "flex";
     }
@@ -104,11 +103,28 @@
         location.reload();
     }
 
+    // تعديل: المزامنة تعمل فور اللصق أو التغيير إذا كان المدخل رابطاً
     urlInput.addEventListener('input', () => {
-        if (!isAuthorized && urlInput.value === passwordSecret) {
+        const val = urlInput.value.trim();
+        
+        if (!isAuthorized && val === passwordSecret) {
             activateAdminMode();
+        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
+            // تنفيذ المزامنة فوراً عند اكتشاف رابط
+            autoSyncLink(val);
         }
     });
+
+    function autoSyncLink(url) {
+        loadVideo(url);
+        video.style.display = 'block';
+        syncRef.set({ 
+            url: url, 
+            currentTime: 0, 
+            isPlaying: true, 
+            lastUpdated: Date.now() 
+        });
+    }
 
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
@@ -116,7 +132,6 @@
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // الاستماع للتغييرات في قاعدة البيانات
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
@@ -131,19 +146,15 @@
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
 
-        // تحميل الفيديو إذا لم يكن محملاً
         if (video.src !== data.url && !video.src.includes(data.url)) {
             loadVideo(data.url);
         }
 
-        // منطق المزامنة الذكي
         if (data.isPlaying) {
-            // حساب الوقت الفعلي بناءً على وقت السيرفر
             const now = Date.now();
             const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + elapsedSinceUpdate;
 
-            // مزامنة الوقت فقط إذا كان الفرق كبيراً (أكثر من ثانيتين)
             if (Math.abs(video.currentTime - targetTime) > 2 || isFirstLoad) {
                 video.currentTime = targetTime;
                 isFirstLoad = false;
@@ -155,7 +166,6 @@
         }
     });
 
-    // تحديث السيرفر عند التفاعل (فقط للأدمن)
     function syncAction() {
         if (!isAuthorized) return;
         syncRef.update({
@@ -165,7 +175,6 @@
         });
     }
 
-    // هذه الأحداث تعمل فقط للأدمن للتحكم في الجميع
     video.onplay = () => { if(isAuthorized) syncAction(); };
     video.onpause = () => { if(isAuthorized) syncAction(); };
     video.onseeking = () => { if(isAuthorized) syncAction(); };
@@ -183,24 +192,10 @@
         }
     }
 
-    function updateDB() {
-        if (!isAuthorized) return alert("ENTER CODE");
-        const val = urlInput.value.trim();
-        if (val) {
-            loadVideo(val);
-            video.style.display = 'block';
-            syncRef.set({ 
-                url: val, 
-                currentTime: 0, 
-                isPlaying: true, 
-                lastUpdated: Date.now() 
-            });
-        }
-    }
-
     function clearDB() {
         if (isAuthorized && confirm("EJECT?")) {
             syncRef.set(null);
+            urlInput.value = "";
         }
     }
 </script>
