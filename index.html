@@ -23,25 +23,13 @@
         #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
         .users-count { color: var(--led-green); }
-        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; position: relative; }
+        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
-        .buttons { display: flex; gap: 10px; }
+        .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
         button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
         button:active { background: #333; }
         button.eject { flex: 1; color: var(--led-red); }
-        
-        #logoutBtn { 
-            display: none; 
-            position: absolute; 
-            left: 10px; 
-            background: #442222; 
-            border: 1px solid #663333; 
-            color: #ffaaaa; 
-            padding: 4px 8px; 
-            font-size: 9px; 
-            cursor: pointer;
-            z-index: 10;
-        }
+        #logoutBtn { display: none; flex: 1; background: #300; border-color: #600; }
     </style>
 </head>
 <body>
@@ -60,12 +48,12 @@
             <span class="users-count">REC ● <span id="count">0</span></span>
         </div>
         <div class="slot">
-            <button id="logoutBtn" onclick="logout()">LOGOUT</button>
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         <div class="buttons">
             <button onclick="updateDB()">SYNC BROADCAST</button>
             <button class="eject" onclick="clearDB()">EJECT</button>
+            <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
         </div>
     </div>
 </div>
@@ -96,57 +84,61 @@
     let hls = new Hls();
     let ignoreUpdates = false;
 
-    // دالة تفعيل وضع الأدمن
-    function setAdminMode() {
+    // وظيفة تفعيل وضع الأدمن
+    function activateAdminMode() {
         isAuthorized = true;
-        localStorage.setItem('vhs_admin', 'true');
+        localStorage.setItem('vhs_admin', 'true'); // حفظ الحالة
+        urlInput.value = ""; 
         urlInput.type = "text"; 
         urlInput.placeholder = "PASTE LINK";
-        urlInput.value = ""; // تفريغ الخانة لاستقبال الرابط
         statusBadge.innerText = "STATUS: ADMIN MODE";
-        logoutBtn.style.display = "block";
+        logoutBtn.style.display = "block"; // إظهار زر تسجيل الخروج
     }
 
-    // فحص الجلسة عند التشغيل
+    // التحقق عند تحميل الصفحة إذا كان الأدمن مسجلاً مسبقاً
     if (localStorage.getItem('vhs_admin') === 'true') {
-        setAdminMode();
+        activateAdminMode();
     }
 
     // تسجيل الخروج
-    function logout() {
+    function adminLogout() {
+        isAuthorized = false;
         localStorage.removeItem('vhs_admin');
-        location.reload(); 
+        urlInput.type = "password";
+        urlInput.placeholder = "ENTER ACCESS CODE";
+        urlInput.value = "";
+        statusBadge.innerText = "STATUS: SYNCED";
+        logoutBtn.style.display = "none";
+        location.reload(); // إعادة تحميل لتنظيف الحالة
     }
 
-    // رصد إدخال رمز المرور
+    // الدخول كأدمن عبر الإدخال
     urlInput.addEventListener('input', () => {
         if (!isAuthorized && urlInput.value === passwordSecret) {
-            setAdminMode();
+            activateAdminMode();
         }
     });
 
-    // عداد المشاهدين
+    // عداد المتواجدين
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // استقبال المزامنة
+    // استقبال المزامنة اللحظي
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
-            document.getElementById('no-signal').style.display = 'block';
             statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
             statusBadge.classList.remove('online');
             return;
         }
 
         video.style.display = 'block';
-        document.getElementById('no-signal').style.display = 'none';
-        statusBadge.classList.add('online');
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
+        statusBadge.classList.add('online');
 
         if (isAuthorized && !ignoreUpdates) return;
 
@@ -156,17 +148,16 @@
             loadVideo(data.url);
         }
 
-        if (Math.abs(video.currentTime - data.currentTime) > 1) {
+        if (Math.abs(video.currentTime - data.currentTime) > 0.5) {
             video.currentTime = data.currentTime;
         }
 
         if (data.isPlaying && video.paused) video.play().catch(() => {});
         else if (!data.isPlaying && !video.paused) video.pause();
 
-        setTimeout(() => { ignoreUpdates = false; }, 500);
+        setTimeout(() => { ignoreUpdates = false; }, 100);
     });
 
-    // إرسال المزامنة
     function syncAction() {
         if (!isAuthorized || ignoreUpdates) return;
         syncRef.update({
@@ -184,42 +175,25 @@
         if (isAuthorized && !video.paused && !ignoreUpdates) {
             syncRef.update({ currentTime: video.currentTime });
         }
-    }, 2000);
+    }, 1000);
 
     function loadVideo(url) {
-        if (Hls.isSupported() && url.includes('.m3u8')) {
-            hls.destroy();
-            hls = new Hls();
-            hls.loadSource(url);
-            hls.attachMedia(video);
-        } else {
-            video.src = url;
-        }
+        hls.destroy();
+        if (url.includes('.m3u8')) {
+            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+        } else { video.src = url; }
     }
 
     function updateDB() {
-        if (!isAuthorized) return alert("ENTER CODE FIRST");
+        if (!isAuthorized) return alert("ENTER CODE");
         const val = urlInput.value.trim();
         if (val) {
-            // إرسال الرابط الجديد وتصفير الوقت
-            syncRef.set({ 
-                url: val, 
-                currentTime: 0, 
-                isPlaying: true, 
-                lastUpdated: Date.now() 
-            }).then(() => {
-                urlInput.value = ""; // تنظيف الخانة بعد الإرسال بنجاح
-                alert("Broadcast Synced!");
-            });
-        } else {
-            alert("Please paste a video link first");
+            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
         }
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT TAPE?")) {
-            syncRef.set(null);
-        }
+        if (isAuthorized && confirm("EJECT?")) syncRef.set(null);
     }
 </script>
 </body>
