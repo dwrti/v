@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
         :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
@@ -71,7 +70,6 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
     const video = document.getElementById('video');
@@ -80,30 +78,14 @@
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
     
-    // إعدادات الأدمن المشفرة
-    const adminEmail = "t@t.tt";
-    const hashedSecret = "vbVwDjuAsMX6kXJ4kRsA0aJY2zJXGKSsaLa4ODwnBx4YDHKAS1jedFULu8FsvYhZOEeh0DUvTQma5c5l5rRMqw"; // كلمة السر tttttt مشفرة
-
+    const passwordSecret = "1234";
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
 
-    // دالة للتحقق من كلمة السر بنظام التشفير
-    async function verifyHash(input) {
-        const msgBuffer = new TextEncoder().encode(input);
-        const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        return hashHex === hashedSecret;
-    }
-
-    // استعادة جلسة الأدمن
-    auth.onAuthStateChanged(user => {
-        if (user && user.email === adminEmail) activateAdminMode();
-    });
-
     function activateAdminMode() {
         isAuthorized = true;
+        localStorage.setItem('vhs_admin', 'true');
         urlInput.value = ""; 
         urlInput.type = "text"; 
         urlInput.placeholder = "PASTE LINK TO SYNC";
@@ -111,28 +93,28 @@
         adminPanel.style.display = "flex";
     }
 
-    function adminLogout() {
-        auth.signOut().then(() => {
-            isAuthorized = false;
-            location.reload();
-        });
+    if (localStorage.getItem('vhs_admin') === 'true') {
+        activateAdminMode();
     }
 
-    urlInput.addEventListener('input', async () => {
+    function adminLogout() {
+        isAuthorized = false;
+        localStorage.removeItem('vhs_admin');
+        location.reload();
+    }
+
+    urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
         
-        if (!isAuthorized) {
-            const isValid = await verifyHash(val);
-            if (isValid) {
-                auth.signInWithEmailAndPassword(adminEmail, val)
-                    .catch(err => console.error("Login failed"));
-            }
-        } else if (isAuthorized && (val.startsWith('http'))) {
+        if (!isAuthorized && val === passwordSecret) {
+            activateAdminMode();
+        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
             autoSyncLink(val);
         }
     });
 
     function autoSyncLink(url) {
+        // تنفيذ المزامنة
         loadVideo(url);
         video.style.display = 'block';
         syncRef.set({ 
@@ -142,10 +124,12 @@
             lastUpdated: Date.now() 
         });
 
+        // التعديل الجديد: مسح النص وإبعاد التركيز فوراً
         urlInput.value = ""; 
         urlInput.placeholder = "SYNCING... PLEASE WAIT";
-        urlInput.blur(); 
+        urlInput.blur(); // لإغلاق الكيبورد في الجوال وإلغاء التحديد
         
+        // إعادة النص الافتراضي بعد ثانية واحدة
         setTimeout(() => {
             urlInput.placeholder = "PASTE LINK TO SYNC";
         }, 1500);
