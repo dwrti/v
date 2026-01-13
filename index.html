@@ -25,11 +25,14 @@
         .users-count { color: var(--led-green); }
         .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
-        .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        
+        /* إخفاء الأزرار بشكل افتراضي */
+        .admin-controls { display: none; gap: 10px; flex-wrap: wrap; }
+        
         button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
         button:active { background: #333; }
         button.eject { flex: 1; color: var(--led-red); }
-        #logoutBtn { display: none; flex: 1; background: #300; border-color: #600; }
+        #logoutBtn { background: #300; border-color: #600; flex: 1; }
     </style>
 </head>
 <body>
@@ -50,7 +53,7 @@
         <div class="slot">
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
-        <div class="buttons">
+        <div id="adminPanel" class="admin-controls">
             <button onclick="updateDB()">SYNC BROADCAST</button>
             <button class="eject" onclick="clearDB()">EJECT</button>
             <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
@@ -77,7 +80,7 @@
     const urlInput = document.getElementById('videoUrl');
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
-    const logoutBtn = document.getElementById('logoutBtn');
+    const adminPanel = document.getElementById('adminPanel');
     
     const passwordSecret = "1234";
     let isAuthorized = false;
@@ -91,7 +94,7 @@
         urlInput.type = "text"; 
         urlInput.placeholder = "PASTE LINK";
         statusBadge.innerText = "STATUS: ADMIN MODE";
-        logoutBtn.style.display = "block";
+        adminPanel.style.display = "flex"; // إظهار لوحة التحكم
     }
 
     if (localStorage.getItem('vhs_admin') === 'true') {
@@ -125,13 +128,10 @@
             return;
         }
 
-        // إظهار الفيديو للأدمن والمشاهد
         video.style.display = 'block';
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
 
-        // إذا كان الأدمن هو من يتلقى التحديث، لا نطبق التحديثات الزمنية عليه لمنع التقطيع
-        // لكن نسمح له باستقبال الرابط إذا كان الرابط جديداً تماماً ولم يتم تحميله بعد
         if (isAuthorized && !ignoreUpdates) {
              if (video.src !== data.url && !video.src.includes(data.url)) {
                 loadVideo(data.url);
@@ -191,10 +191,8 @@
         if (!isAuthorized) return alert("ENTER CODE");
         const val = urlInput.value.trim();
         if (val) {
-            // حل المشكلة: نقوم بتحميل الفيديو للأدمن يدوياً فور الضغط على الزر
             loadVideo(val);
             video.style.display = 'block';
-            
             syncRef.set({ 
                 url: val, 
                 currentTime: 0, 
