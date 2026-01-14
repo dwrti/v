@@ -133,6 +133,7 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
+        /* تنسيق قسم الأشرطة */
         .tape-rack {
             margin-top: 10px;
             display: flex;
@@ -153,8 +154,8 @@
             padding: 8px;
             background: #000;
         }
-        .vhs-play-btn {
-            flex: 0.5;
+        .vhs-btn {
+            flex: 0.4;
             padding: 8px;
             font-size: 9px;
             background: var(--target-navy);
@@ -194,13 +195,13 @@
                 <button onclick="adminLogout()">LOGOUT</button>
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
             </div>
-            
-            <div id="tapeRack" class="tape-rack">
-                <p style="font-size: 9px; color: gray; text-align: center; margin: 15px 0 5px 0; letter-spacing: 1px;">TAPE COLLECTION (ADMIN ONLY)</p>
-                <div id="tapesContainer"></div>
-                <div class="vhs-row" id="firstEmptyRow">
-                    <input type="text" class="vhs-input" id="newTapeInput" placeholder="PASTE URL FOR NEW TAPE...">
-                    <button class="vhs-play-btn" onclick="addNewTape()">SAVE</button>
+
+            <div class="tape-rack">
+                <p style="font-size: 9px; color: gray; text-align: center; margin: 15px 0 5px 0;">TAPE COLLECTION</p>
+                <div id="tapesList"></div>
+                <div class="vhs-row">
+                    <input type="text" id="newTapeInput" class="vhs-input" placeholder="PASTE NEW TAPE URL...">
+                    <button class="vhs-btn" onclick="addNewTape()">SAVE</button>
                 </div>
             </div>
         </div>
@@ -305,11 +306,11 @@
         if (Math.abs(video.currentTime - data.currentTime) > 2) { video.currentTime = data.currentTime; }
     }
 
-    // عرض الأشرطة من الداتابيز
+    // إدارة الأشرطة
     collectionRef.on('value', (snap) => {
         if (!isAdmin) return;
-        const container = document.getElementById('tapesContainer');
-        container.innerHTML = '';
+        const list = document.getElementById('tapesList');
+        list.innerHTML = '';
         const tapes = snap.val();
         if (tapes) {
             Object.entries(tapes).forEach(([id, tape]) => {
@@ -317,10 +318,10 @@
                 row.className = 'vhs-row';
                 row.innerHTML = `
                     <input type="text" class="vhs-input" value="${tape.url}" readonly>
-                    <button class="vhs-play-btn" onclick="playTape('${tape.url}')">PLAY</button>
-                    <button class="vhs-play-btn" style="background:#444; flex:0.3;" onclick="deleteTape('${id}')">X</button>
+                    <button class="vhs-btn" onclick="playTape('${tape.url}')">PLAY</button>
+                    <button class="vhs-btn" style="background:#444; flex:0.2;" onclick="deleteTape('${id}')">X</button>
                 `;
-                container.appendChild(row);
+                list.appendChild(row);
             });
         }
     });
@@ -329,9 +330,9 @@
         const input = document.getElementById('newTapeInput');
         const url = input.value.trim();
         if (url.startsWith('http')) {
-            collectionRef.push({ url: url }).then(() => {
-                input.value = ""; // مسح الخانة بعد الحفظ لتكون جاهزة لواحد جديد
-            });
+            collectionRef.push({ url: url })
+            .then(() => { input.value = ''; alert("SAVED!"); })
+            .catch((err) => alert("ERROR: " + err.message));
         }
     }
 
@@ -340,10 +341,10 @@
     }
 
     function deleteTape(id) {
-        if(confirm("DELETE TAPE?")) collectionRef.child(id).remove();
+        if (confirm("DELETE?")) collectionRef.child(id).remove();
     }
 
-    // الخانة الأساسية فوق
+    // الخانة الأصلية فوق
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
