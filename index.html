@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retro Vision Master</title>
+    <title>CRT Master Pro</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -11,176 +11,62 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { 
-            --wood: #4d2600; 
-            --gold: #d4af37;
-            --screen-glow: rgba(0, 255, 65, 0.1);
-        }
+        :root { --wood: #3d1f00; --panel: #1a1a1a; --gold: #d4af37; }
+        body { background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
+        
+        /* جسم التلفزيون */
+        .tv-case { background: var(--wood); padding: 25px; border-radius: 15px; box-shadow: inset 0 0 50px #000; display: flex; gap: 20px; border: 8px solid #2a1500; }
+        
+        /* الشاشة */
+        .screen-area { background: #111; width: 400px; aspect-ratio: 4/3; border-radius: 40px; border: 15px solid #111; position: relative; overflow: hidden; box-shadow: inset 0 0 40px #000; }
+        video { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .scanlines { position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 4px; pointer-events: none; z-index: 5; }
 
-        body { 
-            background: #0a0a0a; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            min-height: 100vh; 
-            margin: 0; 
-            font-family: 'Courier New', monospace;
-        }
+        /* لوحة الأزرار الجانبية */
+        .controls-panel { display: flex; flex-direction: column; justify-content: space-around; align-items: center; background: var(--panel); padding: 15px; border-radius: 10px; border: 3px solid #333; }
+        
+        /* الأزرار الصغار (فوق) */
+        .small-btns { display: flex; gap: 15px; margin-bottom: 30px; }
+        .btn-small { width: 25px; height: 25px; background: #666; border-radius: 50%; border: 2px solid #999; cursor: pointer; box-shadow: 0 3px 0 #333; }
+        .btn-small:active { transform: translateY(2px); box-shadow: none; }
+        #loginBtn { background: #222; } /* لتسجيل الدخول */
+        #logoutBtn { background: #600; display: none; } /* لتسجيل الخروج */
 
-        /* هيكل التلفزيون الخشبي */
-        .console-tv {
-            background: var(--wood);
-            border: 10px solid #3d1f00;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 0 50px #000, inset 0 0 100px rgba(0,0,0,0.5);
-            width: 90%;
-            max-width: 650px;
-            position: relative;
-        }
+        /* الأزرار الكبار (تحت) */
+        .big-btns { display: flex; flex-direction: column; gap: 20px; }
+        .btn-big { width: 60px; height: 60px; background: linear-gradient(145deg, #444, #111); border-radius: 50%; border: 4px solid #333; cursor: pointer; position: relative; }
+        .btn-big::after { content: ''; position: absolute; top: 10px; left: 50%; width: 4px; height: 15px; background: #d4af37; transform: translateX(-50%); }
+        .btn-big:active { transform: rotate(15deg); }
 
-        /* إطار الشاشة الذهبي */
-        .bezel {
-            background: #111;
-            padding: 15px;
-            border: 4px solid var(--gold);
-            border-radius: 50px / 20px; /* انحناء CRT */
-            position: relative;
-            overflow: hidden;
-            box-shadow: inset 0 0 30px #000;
-        }
-
-        video { 
-            width: 100%; 
-            height: 100%; 
-            display: none; 
-            filter: contrast(1.2) brightness(1.1);
-        }
-
-        /* تأثير الزجاج والخطوط */
-        .glass-effect {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
-            background-size: 100% 4px;
-            pointer-events: none;
-            z-index: 5;
-        }
-
-        #no-signal { 
-            color: var(--gold);
-            font-size: 20px;
-            text-align: center;
-            letter-spacing: 5px;
-            animation: flicker 0.1s infinite;
-        }
-
-        @keyframes flicker {
-            0% { opacity: 0.8; } 100% { opacity: 1; }
-        }
-
-        /* لوحة التحكم النحاسية */
-        .brass-panel {
-            margin-top: 25px;
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 15px;
-            background: #2a1500;
-            padding: 15px;
-            border-top: 3px solid var(--gold);
-        }
-
-        .control-unit {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: var(--gold);
-            font-size: 10px;
-            font-weight: bold;
-        }
-
-        .dial {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(145deg, #d4af37, #8a6d1a);
-            border-radius: 50%;
-            border: 2px solid #5d4300;
-            cursor: pointer;
-            margin-bottom: 5px;
-            position: relative;
-        }
-
-        .dial::after {
-            content: '';
-            position: absolute;
-            top: 5px; left: 50%;
-            width: 3px; height: 10px;
-            background: #000;
-            transform: translateX(-50%);
-        }
-
-        .status-light {
-            width: 12px; height: 12px;
-            border-radius: 50%;
-            background: #300;
-            border: 1px solid #000;
-        }
-
-        .status-light.on { background: #0f0; box-shadow: 0 0 10px #0f0; }
-
-        .admin-tray {
-            display: none;
-            grid-column: span 3;
-            justify-content: center;
-            gap: 20px;
-            border-top: 1px solid var(--gold);
-            padding-top: 10px;
-        }
-
-        .brass-btn {
-            background: #5d4300;
-            color: var(--gold);
-            border: 1px solid var(--gold);
-            padding: 5px 15px;
-            cursor: pointer;
-            font-size: 9px;
-        }
+        #status-led { width: 8px; height: 8px; background: #300; border-radius: 50%; margin-top: 10px; }
+        #status-led.on { background: #0f0; box-shadow: 0 0 10px #0f0; }
     </style>
 </head>
 <body>
 
-<div class="console-tv">
-    <div class="bezel">
-        <div class="glass-effect"></div>
-        <div id="no-signal">SEARCHING SIGNAL...</div>
+<div class="tv-case">
+    <div class="screen-area">
+        <div class="scanlines"></div>
         <video id="video" controls playsinline muted></video>
     </div>
 
-    <div class="brass-panel">
-        <div class="control-unit">
-            <div id="authDial" class="dial"></div>
-            <span>POWER / AUTH</span>
+    <div class="controls-panel">
+        <div class="small-btns">
+            <div id="loginBtn" class="btn-small" title="Login"></div>
+            <div id="logoutBtn" class="btn-small" title="Logout"></div>
         </div>
 
-        <div class="control-unit">
-            <div class="status-light" id="signalLed"></div>
-            <span>SIGNAL: <span id="count">0</span></span>
-        </div>
+        <div id="status-led"></div>
+        <span id="count" style="color: #0f0; font-size: 10px; font-family: monospace;">0</span>
 
-        <div class="control-unit">
-            <div id="status">SYS: STANDBY</div>
-            <span id="modeLabel">MODE: USER</span>
-        </div>
-
-        <div id="adminPanel" class="admin-tray">
-            <button class="brass-btn" onclick="clearDB()">EJECT TAPE</button>
-            <button class="brass-btn" onclick="adminLogout()">SHUTDOWN</button>
+        <div class="big-btns">
+            <div id="addLinkBtn" class="btn-big" title="Add Link"></div>
+            <div id="clearBtn" class="btn-big" style="border-color: #500;" title="Clear"></div>
         </div>
     </div>
 </div>
 
 <script>
-    // الحفاظ على Firebase Config كما هي في كودك الأصلي
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -197,139 +83,96 @@
     const syncRef = db.ref('videoSync');
 
     const video = document.getElementById('video');
-    const statusDisplay = document.getElementById('status');
-    const signalLed = document.getElementById('signalLed');
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const addLinkBtn = document.getElementById('addLinkBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusLed = document.getElementById('status-led');
     const countDisplay = document.getElementById('count');
-    const adminPanel = document.getElementById('adminPanel');
-    const authDial = document.getElementById('authDial');
     
     const adminEmail = "t@t.tt";
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
-    let heartbeatInterval = null;
 
+    // حالة المستخدم
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) {
-            activateAdminMode();
-        }
-    });
-
-    function activateAdminMode() {
-        isAuthorized = true;
-        statusDisplay.innerText = "SYS: ACTIVE";
-        document.getElementById('modeLabel').innerText = "MODE: MASTER";
-        adminPanel.style.display = "flex";
-        signalLed.classList.add('on');
-
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval = setInterval(() => {
-            if (isAuthorized && !video.paused) {
-                syncAction();
-            }
-        }, 5000);
-    }
-
-    function adminLogout() {
-        auth.signOut().then(() => location.reload());
-    }
-
-    // مقبض التحكم (Dial) للقيام بالعمليات
-    authDial.addEventListener('click', () => {
-        let val;
-        if (!isAuthorized) {
-            val = prompt("ENTER MASTER ACCESS CODE:");
-            if (val) {
-                auth.signInWithEmailAndPassword(adminEmail, val)
-                    .catch(() => alert("WRONG FREQUENCY - ACCESS DENIED"));
-            }
+            isAuthorized = true;
+            loginBtn.style.display = "none";
+            logoutBtn.style.display = "block";
+            statusLed.classList.add('on');
         } else {
-            val = prompt("TUNING: PASTE VIDEO SIGNAL (URL):");
-            if (val) autoSyncLink(val);
+            isAuthorized = false;
+            loginBtn.style.display = "block";
+            logoutBtn.style.display = "none";
+            statusLed.classList.remove('on');
         }
     });
 
-    function autoSyncLink(url) {
-        loadVideo(url);
-        video.style.display = 'block';
-        syncRef.set({ 
-            url: url, 
-            currentTime: 0, 
-            isPlaying: true, 
-            lastUpdated: Date.now() 
-        });
-    }
+    // الزر الصغير 1: تسجيل الدخول
+    loginBtn.onclick = () => {
+        const pass = prompt("ENTER CODE:");
+        if (pass) auth.signInWithEmailAndPassword(adminEmail, pass).catch(() => alert("FAIL"));
+    };
 
-    // التعداد والمزامنة (نفس منطق كودك الأصلي)
-    const myPresenceRef = db.ref('viewers').push();
-    db.ref('.info/connected').on('value', snap => {
-        if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
-    });
-    db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
+    // الزر الصغير 2: تسجيل الخروج
+    logoutBtn.onclick = () => {
+        auth.signOut().then(() => location.reload());
+    };
 
-    syncRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (!data || !data.url) {
-            video.style.display = 'none';
-            video.pause();
-            document.getElementById('no-signal').innerText = "NO BROADCAST DETECTED";
-            signalLed.classList.remove('on');
-            return;
+    // الزر الكبير 1: إضافة الرابط
+    addLinkBtn.onclick = () => {
+        if (!isAuthorized) return alert("ADMIN ONLY");
+        const url = prompt("PASTE URL:");
+        if (url) {
+            video.style.display = 'block';
+            syncRef.set({ url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
         }
+    };
 
+    // الزر الكبير 2: حذف الرابط (Eject)
+    clearBtn.onclick = () => {
+        if (isAuthorized && confirm("CLEAR?")) syncRef.set(null);
+    };
+
+    // مزامنة الفيديو (نفس المنطق الأصلي)
+    syncRef.on('value', (s) => {
+        const data = s.val();
+        if (!data) { video.style.display='none'; video.pause(); return; }
         video.style.display = 'block';
-        document.getElementById('no-signal').innerText = "";
-        signalLed.classList.add('on');
-
-        if (video.src !== data.url && !video.src.includes(data.url)) {
-            loadVideo(data.url);
-        }
-
+        if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
         if (data.isPlaying) {
-            const now = Date.now();
-            const elapsed = (now - data.lastUpdated) / 1000;
-            const target = data.currentTime + elapsed;
+            const offset = (Date.now() - data.lastUpdated) / 1000;
+            const target = data.currentTime + offset;
             if (Math.abs(video.currentTime - target) > 2 || isFirstLoad) {
                 video.currentTime = target;
                 isFirstLoad = false;
             }
-            if (video.paused) video.play().catch(() => {});
-        } else {
-            video.pause();
-            video.currentTime = data.currentTime;
-        }
+            video.play().catch(()=>{});
+        } else { video.pause(); video.currentTime = data.currentTime; }
     });
-
-    function syncAction() {
-        if (!isAuthorized) return;
-        syncRef.update({
-            currentTime: video.currentTime,
-            isPlaying: !video.paused,
-            lastUpdated: Date.now()
-        });
-    }
 
     function loadVideo(url) {
         hls.destroy();
         if (url.includes('.m3u8')) {
-            hls = new Hls(); 
-            hls.loadSource(url); 
-            hls.attachMedia(video);
-        } else { 
-            video.src = url; 
-        }
-        video.play().catch(() => {});
+            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+        } else { video.src = url; }
+        video.play().catch(()=>{});
     }
 
-    function clearDB() {
-        if (isAuthorized && confirm("EJECT CURRENT BROADCAST?")) {
-            syncRef.set(null);
-        }
-    }
+    // تحديث المشاهدين
+    const pRef = db.ref('viewers').push();
+    db.ref('.info/connected').on('value', snap => { if(snap.val()) { pRef.set(true); pRef.onDisconnect().remove(); } });
+    db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    video.onplay = () => { if(isAuthorized) syncAction(); };
-    video.onpause = () => { if(isAuthorized) syncAction(); };
-    video.onseeking = () => { if(isAuthorized) syncAction(); };
+    // إرسال التحديثات من الأدمن
+    function syncAction() {
+        if (isAuthorized) syncRef.update({ currentTime: video.currentTime, isPlaying: !video.paused, lastUpdated: Date.now() });
+    }
+    video.onplay = video.onpause = video.onseeking = () => syncAction();
+    setInterval(() => { if(isAuthorized && !video.paused) syncAction(); }, 5000);
+
 </script>
 </body>
 </html>
