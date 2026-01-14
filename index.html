@@ -25,7 +25,6 @@
 
         .vhs-deck { background: #111; border-radius: 4px; padding: 15px; border-bottom: 5px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         
-        /* التعديل هنا: استخدام ltr لضمان بقاء النص جهة اليسار دائماً */
         .display-screen { 
             background: var(--bg-inner); 
             padding: 10px 15px; 
@@ -86,7 +85,6 @@
 </div>
 
 <script>
-    // تهيئة Firebase (بياناتك الأصلية)
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -169,14 +167,14 @@
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            // التعديل هنا ليكون OFFLINE حصراً
             statusBadge.innerText = isAuthorized ? "STATUS: OPERATOR" : "STATUS: OFFLINE";
             statusBadge.classList.remove('online');
             return;
         }
 
         video.style.display = 'block';
-        statusBadge.innerText = isAuthorized ? "STATUS: LIVE" : "STATUS: LOCKED";
+        // التعديل هنا: خليه ONLINE للمشاهد بدلاً من LOCKED
+        statusBadge.innerText = isAuthorized ? "STATUS: LIVE" : "STATUS: ONLINE";
         statusBadge.classList.add('online');
 
         if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
