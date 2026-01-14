@@ -132,50 +132,95 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
+        /* --- تصميم الأشرطة الجديد --- */
         .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
+        
         .vhs-shelf { 
             display: flex; 
             flex-wrap: wrap; 
-            gap: 12px; 
+            gap: 20px; 
             justify-content: center; 
             margin-top: 15px; 
             padding-bottom: 40px;
+            perspective: 1000px;
         }
+
         .vhs-tape {
-            background: #222;
-            border-left: 6px solid var(--power-red);
-            padding: 12px 8px;
-            cursor: pointer;
-            font-size: 11px;
-            width: 100px;
-            text-align: center;
-            border-radius: 2px;
-            box-shadow: 4px 4px 0px rgba(0,0,0,0.6);
-            transition: all 0.2s;
-            border-top: 1px solid rgba(255,255,255,0.1);
+            background: #1a1a1a;
+            width: 130px;
+            height: 42px;
             position: relative;
-            word-break: break-all;
+            cursor: pointer;
+            border-radius: 3px;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.5);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #111;
         }
-        .vhs-tape:hover { transform: translateY(-5px) scale(1.05); background: #333; }
-        
-        .admin-tape-controls {
-            margin-top: 10px;
-            border-top: 1px dashed rgba(255,255,255,0.3);
-            padding-top: 10px;
+
+        /* الملصق الأبيض */
+        .vhs-tape::before {
+            content: "";
+            position: absolute;
+            top: 5px;
+            left: 8px;
+            right: 8px;
+            bottom: 5px;
+            background: linear-gradient(to bottom, #fff 0%, #e0e0e0 100%);
+            border-radius: 2px;
+            z-index: 1;
         }
+
+        /* العلامة الحمراء الجانبية */
+        .vhs-tape::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 5px;
+            height: 100%;
+            background: var(--power-red);
+            z-index: 2;
+        }
+
+        .tape-label {
+            position: relative;
+            z-index: 3;
+            color: #333;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            width: 80%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: sans-serif;
+        }
+
+        .vhs-tape:hover {
+            transform: translateY(-8px) rotateX(10deg);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.6);
+            filter: brightness(1.1);
+        }
+
         .delete-btn {
             position: absolute;
-            top: -5px;
-            right: -5px;
+            top: 2px;
+            right: 2px;
             background: var(--power-red);
             color: white;
             border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            font-size: 10px;
+            width: 16px;
+            height: 16px;
+            font-size: 9px;
+            z-index: 10;
             display: none;
             align-items: center;
             justify-content: center;
+            border: none;
         }
     </style>
 </head>
@@ -257,18 +302,11 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة الإخراج للمشاهدين (محسنة)
     function publicEject() {
-        if(!isPoweredOn) {
-            alert("شغل التلفزيون أولاً!");
-            return;
-        }
-        // إيقاف وتشويش فوري محلياً
+        if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
         video.pause();
         video.style.display = 'none';
         toggleStatic(true);
-        
-        // إرسال الإشارة للجميع عبر Firebase
         syncRef.set(null);
     }
 
@@ -296,7 +334,10 @@
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>${tape.name}`;
+            el.innerHTML = `
+                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
+                <div class="tape-label">${tape.name}</div>
+            `;
             el.onclick = () => {
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
                 syncRef.set({ url: tape.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
