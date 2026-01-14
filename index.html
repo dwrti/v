@@ -133,7 +133,7 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
-        /* --- إضافات قسم الأشرطة الجديدة --- */
+        /* --- استايل الأشرطة الجديد --- */
         .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
         .vhs-shelf { 
             display: flex; 
@@ -155,9 +155,16 @@
             box-shadow: 4px 4px 0px rgba(0,0,0,0.6);
             transition: all 0.2s;
             border-top: 1px solid rgba(255,255,255,0.1);
+            position: relative;
         }
         .vhs-tape:hover { transform: translateY(-5px) scale(1.05); background: #333; }
-        .vhs-tape:active { transform: translateY(0); }
+        
+        .admin-tape-controls {
+            display: none; /* يظهر فقط للآدمن */
+            margin-top: 10px;
+            border-top: 1px dashed rgba(255,255,255,0.3);
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body> 
@@ -190,6 +197,16 @@
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
                 <button onclick="adminLogout()">LOGOUT</button>
             </div>
+            
+            <div class="admin-tape-controls" id="adminTapePanel" style="display:block;">
+                <p style="font-size: 10px; color: var(--power-green);">ADMIN: تحديث روابط الأشرطة</p>
+                <div style="display: flex; gap: 5px; flex-direction: column;">
+                    <input type="text" id="tape1_url" placeholder="رابط شريط 1 الجديد" style="font-size: 10px; padding: 5px;">
+                    <input type="text" id="tape2_url" placeholder="رابط شريط 2 الجديد" style="font-size: 10px; padding: 5px;">
+                    <input type="text" id="tape3_url" placeholder="رابط شريط 3 الجديد" style="font-size: 10px; padding: 5px;">
+                    <button onclick="updateTapeLinks()" style="padding: 5px; font-size: 9px; background: var(--power-green); color: black;">حفظ التغييرات</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -221,40 +238,51 @@
     const db = firebase.database();
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
+    const tapesRef = db.ref('tapesLibrary'); // فرع الأشرطة
 
-    // --- بيانات الأشرطة (يمكنك تعديل الروابط هنا) ---
-    const myTapes = [
-        { name: "شريط 1", url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8" },
-        { name: "شريط 2", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" },
-        { name: "شريط 3", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" }
-    ];
+    // وظيفة الآدمن لتحديث الروابط في الداتابيز
+    function updateTapeLinks() {
+        const t1 = document.getElementById('tape1_url').value;
+        const t2 = document.getElementById('tape2_url').value;
+        const t3 = document.getElementById('tape3_url').value;
+        
+        const updates = {};
+        if(t1) updates['tape1'] = { name: "شريط 1", url: t1 };
+        if(t2) updates['tape2'] = { name: "شريط 2", url: t2 };
+        if(t3) updates['tape3'] = { name: "شريط 3", url: t3 };
+        
+        tapesRef.update(updates).then(() => alert("تم تحديث الأشرطة للجميع!"));
+    }
 
-    function renderTapes() {
+    // جلب الأشرطة وعرضها للمشاهدين (تتحدث تلقائياً عند تغييرها من الآدمن)
+    tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
-        myTapes.forEach(tape => {
+        shelf.innerHTML = ""; // مسح القديم
+        const data = snap.val() || {
+            tape1: { name: "شريط 1", url: "" },
+            tape2: { name: "شريط 2", url: "" },
+            tape3: { name: "شريط 3", url: "" }
+        };
+        
+        Object.keys(data).forEach(key => {
+            const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
             el.innerText = tape.name;
-            el.onclick = () => insertTape(tape.url);
+            el.onclick = () => {
+                if(!tape.url) { alert("هذا الشريط فارغ حالياً"); return; }
+                insertTape(tape.url);
+            };
             shelf.appendChild(el);
         });
-    }
+    });
 
     function insertTape(url) {
-        if (!isPoweredOn) {
-            alert("يرجى تشغيل التلفزيون أولاً!");
-            return;
-        }
-        syncRef.set({
-            url: url,
-            currentTime: 0,
-            isPlaying: true,
-            lastUpdated: Date.now()
-        });
+        if (!isPoweredOn) { alert("يرجى تشغيل التلفزيون أولاً!"); return; }
+        syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
     }
-    
-    renderTapes(); // تشغيل دالة عرض الأشرطة
 
+    // --- بقية كودك الأصلي بدون أي تعديل ---
     function togglePower() {
         isPoweredOn = !isPoweredOn;
         if (isPoweredOn) {
@@ -285,17 +313,14 @@
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
         noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; 
-        noiseNode.loop = true;
+        noiseNode.buffer = buffer; noiseNode.loop = true;
         const gainNode = audioCtx.createGain();
         gainNode.gain.value = 0.04;
         noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
         noiseNode.start();
     }
 
-    function stopStaticSound() { 
-        if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } 
-    }
+    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
 
     function loopNoise() {
         if (!isPoweredOn) return;
@@ -315,8 +340,7 @@
             startStaticSound();
         } else {
             canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); 
-            noiseID = null;
+            cancelAnimationFrame(noiseID); noiseID = null;
             stopStaticSound();
         }
     }
@@ -324,13 +348,10 @@
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
         if (!data || !data.url) {
-            video.style.display = 'none'; 
-            video.pause();
-            toggleStatic(true);
-            return;
+            video.style.display = 'none'; video.pause();
+            toggleStatic(true); return;
         }
-        video.style.display = 'block'; 
-        toggleStatic(false); 
+        video.style.display = 'block'; toggleStatic(false); 
         if (!video.src.includes(data.url)) loadVideo(data.url);
         if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
         else { if (!video.paused) video.pause(); }
@@ -369,9 +390,8 @@
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) {
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
-            } else { video.src = url; }
+            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } 
+            else { video.src = url; }
         } else { video.src = url; }
     }
 
