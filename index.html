@@ -133,6 +133,7 @@
                 <button style="color: #ff9f43;" onclick="controlVideo('stop')">STOP</button> 
                 <button onclick="seekVideo(-10)">-10s</button>
                 <button onclick="seekVideo(10)">+10s</button>
+                <button style="background: #2c3e50;" onclick="toggleFullScreen()">FULLSCREEN</button>
             </div>
 
             <div class="btn-group" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top:10px">
@@ -158,6 +159,16 @@
     }
 
     function hideOverlay() { overlay.style.display = 'none'; }
+
+    function toggleFullScreen() {
+        if (video.requestFullscreen) {
+            video.requestFullscreen();
+        } else if (video.webkitRequestFullscreen) { /* Safari */
+            video.webkitRequestFullscreen();
+        } else if (video.msRequestFullscreen) { /* IE11 */
+            video.msRequestFullscreen();
+        }
+    }
 
     function startStaticSound() {
         if (!audioCtx || noiseNode) return;
