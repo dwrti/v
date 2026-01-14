@@ -40,6 +40,7 @@
             border: 1px solid rgba(255,255,255,0.1); 
             box-shadow: 0 15px 35px rgba(0,0,0,0.4);
             cursor: pointer;
+            position: relative;
         }
 
         .screen-border { 
@@ -52,12 +53,27 @@
             justify-content: center; 
         }
 
+        /* رسالة تنبيه لتفعيل الصوت */
+        #tap-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--pure-white);
+            font-size: 12px;
+            text-align: center;
+            pointer-events: none;
+            letter-spacing: 2px;
+        }
+
         #noise-canvas {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
-            display: block;
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
@@ -82,9 +98,8 @@
             text-align: left; 
             direction: ltr;   
         }
-        input::placeholder { color: var(--pure-white); opacity: 0.8; }
 
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
         button { 
             flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); 
             color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; 
@@ -95,9 +110,11 @@
     </style>
 </head>
 <body onclick="initAudio()"> 
+
 <div class="container">
-    <div class="tv-unit" title="Click to start system">
+    <div class="tv-unit" onclick="hideOverlay()">
         <div class="screen-border">
+            <div id="tap-overlay">TAP SCREEN TO ACTIVATE AUDIO</div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" playsinline muted></video>
         </div>
@@ -107,9 +124,18 @@
         <div id="authSection">
             <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
         </div>
+        
         <div id="adminSection">
             <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
+            
             <div class="btn-group">
+                <button onclick="controlVideo('play')">PLAY</button>
+                <button onclick="controlVideo('pause')">PAUSE</button>
+                <button onclick="seekVideo(-10)">-10s</button>
+                <button onclick="seekVideo(10)">+10s</button>
+            </div>
+
+            <div class="btn-group" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); pt-10px">
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
                 <button onclick="adminLogout()">LOGOUT</button>
             </div>
@@ -121,55 +147,43 @@
     const canvas = document.getElementById('noise-canvas');
     const ctx = canvas.getContext('2d');
     const video = document.getElementById('video');
-    let noiseID;
-    let audioCtx, noiseNode;
-    let isAdmin = false;
+    const overlay = document.getElementById('tap-overlay');
+    let noiseID, audioCtx, noiseNode, isAdmin = false;
 
-    // --- Audio System (White Noise Generator) ---
+    // --- نظام الصوت والوشوشة ---
     function initAudio() {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        // فتح صوت الفيديو عند أول ضغطة
+        video.muted = false;
+        
         if (canvas.style.display !== 'none') startStaticSound();
     }
 
+    function hideOverlay() { overlay.style.display = 'none'; }
+
     function startStaticSound() {
         if (!audioCtx || noiseNode) return;
-        const bufferSize = audioCtx.sampleRate * 2;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
         noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer;
-        noiseNode.loop = true;
+        noiseNode.buffer = buffer; noiseNode.loop = true;
         const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.05; // حجم صوت الوشوشة
-        noiseNode.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
+        gainNode.gain.value = 0.04;
+        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
         noiseNode.start();
     }
 
-    function stopStaticSound() {
-        if (noiseNode) {
-            noiseNode.stop();
-            noiseNode = null;
-        }
-    }
-
-    function createNoise() {
-        canvas.width = 200; canvas.height = 150;
-        const idata = ctx.createImageData(canvas.width, canvas.height);
-        const buffer32 = new Uint32Array(idata.data.buffer);
-        for (let i = 0; i < buffer32.length; i++) {
-            buffer32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
-        }
-        ctx.putImageData(idata, 0, 0);
-    }
+    function stopStaticSound() { if (noiseNode) { noiseNode.stop(); noiseNode = null; } }
 
     function loopNoise() {
-        createNoise();
+        canvas.width = 200; canvas.height = 150;
+        const idata = ctx.createImageData(canvas.width, canvas.height);
+        const b32 = new Uint32Array(idata.data.buffer);
+        for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
+        ctx.putImageData(idata, 0, 0);
         noiseID = requestAnimationFrame(loopNoise);
     }
 
@@ -180,13 +194,12 @@
             startStaticSound();
         } else {
             canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID);
-            noiseID = null;
+            cancelAnimationFrame(noiseID); noiseID = null;
             stopStaticSound();
         }
     }
 
-    // --- Firebase Configuration ---
+    // --- Firebase ---
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -202,23 +215,28 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
+    // --- وظائف التحكم (أدمن) ---
+    function controlVideo(action) {
+        if (action === 'play') syncRef.update({ isPlaying: true });
+        if (action === 'pause') syncRef.update({ isPlaying: false });
+    }
+    function seekVideo(sec) {
+        syncRef.update({ currentTime: video.currentTime + sec, lastUpdated: Date.now() });
+    }
+
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
-            // مزامنة الوقت للأدمن كل 5 ثواني
             setInterval(() => {
-                if (video.src && !video.paused) {
-                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
-                }
+                if (!video.paused) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
             }, 5000);
         }
     });
 
     document.getElementById('adminPass').addEventListener('input', (e) => {
-        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(() => {});
+        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
     });
 
     document.getElementById('videoUrl').addEventListener('change', (e) => {
@@ -229,44 +247,38 @@
         }
     });
 
+    // --- المزامنة ---
     syncRef.on('value', (snap) => {
         const data = snap.val();
         if (!data || !data.url) {
-            video.style.display = 'none';
-            toggleStatic(true);
-            video.pause();
-            video.src = "";
+            video.style.display = 'none'; video.pause(); toggleStatic(true);
         } else {
-            video.style.display = 'block';
-            toggleStatic(false);
+            video.style.display = 'block'; toggleStatic(false);
             if (!video.src.includes(data.url)) loadVideo(data.url);
             
-            // مزامنة الوقت للمشاهدين
-            if (!isAdmin) {
-                if (Math.abs(video.currentTime - data.currentTime) > 3) {
-                    video.currentTime = data.currentTime;
-                }
+            // مزامنة حالة التشغيل
+            if (data.isPlaying) video.play().catch(()=>{}); else video.pause();
+
+            // مزامنة الوقت (للمشاهدين فقط)
+            if (!isAdmin && Math.abs(video.currentTime - data.currentTime) > 3) {
+                video.currentTime = data.currentTime;
             }
         }
     });
 
-    let hls = null;
+    let hls;
     function loadVideo(url) {
-        if (hls) { hls.destroy(); hls = null; }
+        if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
             if (Hls.isSupported()) {
                 hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = url;
-            }
+            } else { video.src = url; }
         } else { video.src = url; }
-        video.play().catch(() => {});
     }
 
     function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
 
-    // تشغيل الوشوشة عند البداية
     toggleStatic(true);
 </script>
 </body>
