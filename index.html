@@ -12,182 +12,47 @@
 
     <style>
         :root { 
-            --target-navy: #151b4e; 
-            --dark-navy: #0d1131;   
-            --pure-white: #ffffff;
-            --power-red: #ff4b2b;
-            --power-green: #2ecc71;
+            --target-navy: #151b4e; --dark-navy: #0d1131;   
+            --pure-white: #ffffff; --power-red: #ff4b2b; --power-green: #2ecc71;
         }
         
         body { 
-            background-color: var(--target-navy); 
-            font-family: 'Courier New', monospace; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            margin: 0; 
-            padding: 20px; 
-            color: var(--pure-white);
-            min-height: 100vh;
+            background-color: var(--target-navy); font-family: 'Courier New', monospace; 
+            display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; 
+            color: var(--pure-white); min-height: 100vh;
             background: linear-gradient(135deg, var(--target-navy) 0%, var(--dark-navy) 100%);
             overflow-x: hidden;
         }
         
         .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
-
-        .tv-unit { 
-            background: var(--target-navy); 
-            padding: 8px; 
-            border-radius: 4px; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            position: relative;
-        }
-
-        .screen-border { 
-            background: #000; 
-            aspect-ratio: 16 / 9; 
-            position: relative; 
-            overflow: hidden; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-
-        #tap-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #000;
-            z-index: 100;
-        }
-
-        #noise-canvas {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-            opacity: 0.9;
-            display: none;
-        }
-
+        .tv-unit { background: var(--target-navy); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 15px 35px rgba(0,0,0,0.4); position: relative; }
+        .screen-border { background: #000; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #tap-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; }
+        #noise-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.9; display: none; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
-        .tv-controls {
-            display: flex;
-            justify-content: center;
-            padding: 10px 0 5px 0;
-        }
-        
-        .power-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.2);
-            background: #111;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-        
-        .power-btn.active {
-            border-color: var(--power-green);
-            box-shadow: 0 0 15px var(--power-green);
-        }
-        
-        .power-icon {
-            width: 15px;
-            height: 15px;
-            fill: var(--power-red);
-        }
-        
-        .power-btn.active .power-icon {
-            fill: var(--power-green);
-        }
+        .tv-controls { display: flex; justify-content: center; padding: 10px 0 5px 0; }
+        .power-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); background: #111; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+        .power-btn.active { border-color: var(--power-green); box-shadow: 0 0 15px var(--power-green); }
+        .power-icon { width: 15px; height: 15px; fill: var(--power-red); }
+        .power-btn.active .power-icon { fill: var(--power-green); }
 
-        .control-panel { 
-            background: var(--target-navy); 
-            border: 1px solid rgba(255,255,255,0.1); 
-            border-radius: 4px; 
-            padding: 20px; 
-        }
-        
-        input { 
-            width: 100%; 
-            background: var(--dark-navy); 
-            border: 1px solid rgba(255,255,255,0.2); 
-            color: var(--pure-white); 
-            padding: 12px; 
-            outline: none; 
-            font-family: inherit; 
-            box-sizing: border-box; 
-            direction: ltr;   
-        }
-
+        .control-panel { background: var(--target-navy); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 20px; }
+        input { width: 100%; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); color: var(--pure-white); padding: 12px; outline: none; font-family: inherit; box-sizing: border-box; direction: ltr; }
         .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        button { 
-            flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); 
-            color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; 
-        }
+        button { flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; }
 
         #authSection { display: block; }
         #adminSection { display: none; }
 
-        .tape-rack {
-            margin-top: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .vhs-row {
-            display: flex;
-            gap: 5px;
-            background: rgba(0,0,0,0.3);
-            padding: 5px;
-            border-radius: 3px;
-            align-items: center;
-            transition: 0.3s;
-        }
-        .vhs-row.playing {
-            border-right: 4px solid var(--power-green);
-            background: rgba(46, 204, 113, 0.1);
-        }
-        .vhs-input {
-            flex: 2;
-            font-size: 10px;
-            padding: 8px;
-            background: #000;
-            color: white;
-            border: none;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .vhs-btn {
-            flex: 0.4;
-            padding: 8px;
-            font-size: 9px;
-            background: var(--target-navy);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
-            cursor: pointer;
-        }
-        .viewer-tape {
-            width: 100%;
-            background: #1a1a1a;
-            border-left: 4px solid #fff;
-            padding: 10px;
-            font-size: 10px;
-            cursor: pointer;
-            text-align: center;
-            transition: 0.3s;
-            box-sizing: border-box;
-        }
-        .viewer-tape.active-tape {
-            border-left-color: var(--power-green);
-            color: var(--power-green);
-            background: #000;
-        }
-        .viewer-tape:hover { background: #333; }
+        .tape-rack { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .vhs-row { display: flex; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px; border-radius: 3px; align-items: center; transition: 0.3s; cursor: pointer; }
+        .vhs-row.playing { border-right: 4px solid var(--power-green); background: rgba(46, 204, 113, 0.1); }
+        .vhs-input { flex: 2; font-size: 10px; padding: 8px; background: #000; color: white; border: none; pointer-events: none; }
+        .vhs-btn { flex: 0.4; padding: 8px; font-size: 9px; background: var(--target-navy); border: 1px solid rgba(255,255,255,0.3); color: white; }
+        
+        .viewer-tape { width: 100%; background: #1a1a1a; border-left: 4px solid #fff; padding: 10px; font-size: 10px; cursor: pointer; text-align: center; transition: 0.3s; box-sizing: border-box; }
+        .viewer-tape.active-tape { border-left-color: var(--power-green); color: var(--power-green); background: #000; }
     </style>
 </head>
 <body> 
@@ -199,37 +64,29 @@
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline muted></video>
         </div>
-        
         <div class="tv-controls">
             <div class="power-btn" id="powerBtn" onclick="togglePower()">
-                <svg class="power-icon" viewBox="0 0 24 24">
-                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
-                </svg>
+                <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
             </div>
         </div>
     </div>
 
     <div class="control-panel">
-        <div id="authSection">
-            <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
-        </div>
-        
+        <div id="authSection"><input type="password" id="adminPass" placeholder="ENTER ACCESS CODE"></div>
         <div id="adminSection">
             <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
             <div class="btn-group">
                 <button onclick="adminLogout()">LOGOUT</button>
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
             </div>
-
             <div class="tape-rack">
                 <p style="font-size: 9px; color: gray; text-align: center; margin: 15px 0 5px 0;">ADD NEW TAPE</p>
-                <div class="vhs-row">
-                    <input type="text" id="newTapeInput" class="vhs-input" placeholder="PASTE URL...">
+                <div class="vhs-row" style="cursor: default;">
+                    <input type="text" id="newTapeInput" style="flex:2; background:#000; color:white; border:1px solid #333; padding:8px;" placeholder="PASTE URL...">
                     <button class="vhs-btn" onclick="addNewTape()">SAVE</button>
                 </div>
             </div>
         </div>
-
         <div class="tape-rack" id="publicRack">
             <p style="font-size: 9px; color: gray; text-align: center; margin: 15px 0 5px 0;">TAPE COLLECTION</p>
             <div id="tapesList"></div>
@@ -238,14 +95,10 @@
 </div>
 
 <script>
-    const canvas = document.getElementById('noise-canvas');
-    const ctx = canvas.getContext('2d');
-    const video = document.getElementById('video');
-    const overlay = document.getElementById('tap-overlay');
-    const powerBtn = document.getElementById('powerBtn');
-    let noiseID, audioCtx, noiseNode, isAdmin = false;
-    let isPoweredOn = false;
-    let currentLoadedUrl = ""; // الرابط المحمل حالياً في المشغل فعلياً
+    const canvas = document.getElementById('noise-canvas'), ctx = canvas.getContext('2d');
+    const video = document.getElementById('video'), overlay = document.getElementById('tap-overlay'), powerBtn = document.getElementById('powerBtn');
+    let noiseID, audioCtx, noiseNode, isAdmin = false, isPoweredOn = false;
+    let currentTapeId = ""; // المعرف الحالي للشريط الشغال
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -258,192 +111,128 @@
     };
 
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const auth = firebase.auth();
-    const syncRef = db.ref('videoSync');
-    const collectionRef = db.ref('tapeCollection');
+    const db = firebase.database(), auth = firebase.auth();
+    const syncRef = db.ref('videoSync'), collectionRef = db.ref('tapeCollection');
 
     function togglePower() {
         isPoweredOn = !isPoweredOn;
         if (isPoweredOn) {
-            powerBtn.classList.add('active');
-            overlay.style.display = 'none';
-            initAudio();
+            powerBtn.classList.add('active'); overlay.style.display = 'none';
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
         } else {
-            powerBtn.classList.remove('active');
-            overlay.style.display = 'block';
-            video.style.display = 'none';
-            video.pause();
-            toggleStatic(false);
-            if (audioCtx) audioCtx.suspend();
+            powerBtn.classList.remove('active'); overlay.style.display = 'block';
+            video.style.display = 'none'; video.pause(); toggleStatic(false);
         }
-    }
-
-    function initAudio() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        video.muted = false;
-    }
-
-    function startStaticSound() {
-        if (!audioCtx || noiseNode || !isPoweredOn) return;
-        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; 
-        noiseNode.loop = true;
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.04;
-        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
-        noiseNode.start();
-    }
-
-    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
-
-    function loopNoise() {
-        if (!isPoweredOn) return;
-        canvas.width = 200; canvas.height = 150;
-        const idata = ctx.createImageData(canvas.width, canvas.height);
-        const b32 = new Uint32Array(idata.data.buffer);
-        for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
-        ctx.putImageData(idata, 0, 0);
-        noiseID = requestAnimationFrame(loopNoise);
     }
 
     function toggleStatic(show) {
         if (show && isPoweredOn) {
-            canvas.style.display = 'block';
-            if (!noiseID) loopNoise();
-            stopStaticSound(); startStaticSound();
+            canvas.style.display = 'block'; if (!noiseID) loopNoise();
+            if (audioCtx && !noiseNode) startStaticSound();
         } else {
-            canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); noiseID = null; stopStaticSound();
+            canvas.style.display = 'none'; cancelAnimationFrame(noiseID); noiseID = null; stopStaticSound();
         }
     }
+
+    function loopNoise() {
+        if (!isPoweredOn) return;
+        canvas.width = 200; canvas.height = 150;
+        const idata = ctx.createImageData(canvas.width, canvas.height), b32 = new Uint32Array(idata.data.buffer);
+        for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
+        ctx.putImageData(idata, 0, 0); noiseID = requestAnimationFrame(loopNoise);
+    }
+
+    function startStaticSound() {
+        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate), data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        noiseNode = audioCtx.createBufferSource(); noiseNode.buffer = buffer; noiseNode.loop = true;
+        const g = audioCtx.createGain(); g.gain.value = 0.04; noiseNode.connect(g); g.connect(audioCtx.destination); noiseNode.start();
+    }
+    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
 
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
-        
-        // إذا لم يكن هناك فيديو (Eject)
         if (!data || !data.url) {
-            currentLoadedUrl = ""; 
-            video.style.display = 'none'; 
-            video.pause(); 
-            video.src = ""; // تفريغ المصدر منعاً لأي تعليق
-            toggleStatic(true);
-            updateTapeUI(""); 
-            return;
+            currentTapeId = ""; video.style.display = 'none'; video.pause(); video.src = "";
+            toggleStatic(true); updateTapeUI(""); return;
         }
-
-        video.style.display = 'block'; 
-        toggleStatic(false); 
-
-        // تحميل الفيديو فقط إذا كان الرابط تغير فعلاً
-        if (currentLoadedUrl !== data.url) {
-            loadVideo(data.url);
-        }
-
-        // مزامنة حالة التشغيل
-        if (data.isPlaying) { 
-            if (video.paused) video.play().catch(()=>{}); 
-        } else { 
-            if (!video.paused) video.pause(); 
-        }
-
-        // مزامنة الوقت (فقط إذا كان الفرق كبيراً)
-        if (Math.abs(video.currentTime - data.currentTime) > 3) { 
-            video.currentTime = data.currentTime; 
-        }
-        
-        updateTapeUI(data.url);
+        currentTapeId = data.tapeId || "direct";
+        video.style.display = 'block'; toggleStatic(false);
+        if (video.src !== data.url) loadVideo(data.url);
+        if (data.isPlaying && video.paused) video.play().catch(()=>{});
+        if (!data.isPlaying && !video.paused) video.pause();
+        if (Math.abs(video.currentTime - data.currentTime) > 3) video.currentTime = data.currentTime;
+        updateTapeUI(currentTapeId);
     }
 
-    function updateTapeUI(activeUrl) {
-        const tapes = document.querySelectorAll('.vhs-row, .viewer-tape');
-        tapes.forEach(t => {
-            const url = t.getAttribute('data-url');
-            if (url && url === activeUrl) {
-                t.classList.add('playing', 'active-tape');
-            } else {
-                t.classList.remove('playing', 'active-tape');
-            }
+    function loadVideo(url) {
+        if (window.hls) window.hls.destroy();
+        if (url.includes('.m3u8') && Hls.isSupported()) {
+            window.hls = new Hls(); window.hls.loadSource(url); window.hls.attachMedia(video);
+        } else { video.src = url; }
+    }
+
+    function updateTapeUI(activeId) {
+        document.querySelectorAll('[data-id]').forEach(t => {
+            const id = t.getAttribute('data-id');
+            t.classList.toggle('playing', id === activeId);
+            t.classList.toggle('active-tape', id === activeId);
         });
     }
 
     collectionRef.on('value', (snap) => {
-        const list = document.getElementById('tapesList');
-        list.innerHTML = '';
+        const list = document.getElementById('tapesList'); list.innerHTML = '';
         const tapes = snap.val();
         if (tapes) {
             Object.entries(tapes).forEach(([id, tape]) => {
                 const row = document.createElement('div');
-                row.setAttribute('data-url', tape.url);
+                row.setAttribute('data-id', id);
                 if (isAdmin) {
                     row.className = 'vhs-row';
-                    row.innerHTML = `
-                        <div class="vhs-input" onclick="playTapeToggle('${tape.url}')">${tape.url.substring(0, 30)}...</div>
-                        <button class="vhs-btn" onclick="playTapeToggle('${tape.url}')">PLAY</button>
-                        <button class="vhs-btn" style="background:#444; flex:0.2;" onclick="deleteTape('${id}')">X</button>
-                    `;
+                    row.innerHTML = `<div class="vhs-input" onclick="playTapeToggle('${tape.url}', '${id}')">${tape.url.substring(0, 25)}...</div>
+                                     <button class="vhs-btn" onclick="playTapeToggle('${tape.url}', '${id}')">PLAY</button>
+                                     <button class="vhs-btn" style="background:#444; flex:0.2;" onclick="deleteTape('${id}')">X</button>`;
                 } else {
-                    row.className = 'viewer-tape';
-                    row.innerHTML = `📼 VHS TAPE: ${tape.url.substring(0, 20)}...`;
-                    row.onclick = () => playTapeToggle(tape.url);
+                    row.className = 'viewer-tape'; row.innerHTML = `📼 VHS TAPE: ${tape.url.substring(0, 20)}...`;
+                    row.onclick = () => playTapeToggle(tape.url, id);
                 }
                 list.appendChild(row);
             });
-            // استرجاع اللون الأخضر للشريط الحالي بعد إعادة بناء القائمة
-            syncRef.once('value', s => { if(s.val()) updateTapeUI(s.val().url); });
+            updateTapeUI(currentTapeId);
         }
     });
 
-    function playTapeToggle(url) {
-        if (!isPoweredOn) { alert("PLEASE TURN ON TV FIRST"); return; }
-        
-        syncRef.once('value', (snap) => {
-            const data = snap.val();
-            // إذا كان الرابط المرسل هو نفسه الشغال حالياً -> افصل (Eject)
-            if (data && data.url === url) {
-                syncRef.set(null); 
-            } else {
-                // شغل شريط جديد
-                syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
-            }
-        });
+    function playTapeToggle(url, id) {
+        if (!isPoweredOn) return alert("TURN ON TV");
+        // إذا كان نفس الشريط شغال -> افصل
+        if (currentTapeId === id) {
+            syncRef.set(null);
+        } else {
+            // شريط جديد -> شغل
+            syncRef.set({ url: url, tapeId: id, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+        }
     }
 
     function addNewTape() {
         const input = document.getElementById('newTapeInput');
-        const url = input.value.trim();
-        if (url.startsWith('http')) {
-            collectionRef.push({ url: url }).then(() => { input.value = ''; });
-        }
+        if (input.value.startsWith('http')) collectionRef.push({ url: input.value.trim() }).then(() => input.value = '');
     }
 
-    function deleteTape(id) {
-        if (confirm("DELETE THIS TAPE?")) collectionRef.child(id).remove();
-    }
+    function deleteTape(id) { if (confirm("DELETE?")) collectionRef.child(id).remove(); }
 
     document.getElementById('videoUrl').addEventListener('change', (e) => {
-        const val = e.target.value.trim();
-        if (val.startsWith('http')) {
-            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+        if (e.target.value.startsWith('http')) {
+            syncRef.set({ url: e.target.value.trim(), tapeId: "direct", currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
             e.target.value = "";
         }
     });
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
-            isAdmin = true;
-            document.getElementById('authSection').style.display = 'none';
-            document.getElementById('adminSection').style.display = 'block';
-            setInterval(() => {
-                if (!video.paused && isAdmin) {
-                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
-                }
-            }, 1000); 
+            isAdmin = true; document.getElementById('authSection').style.display = 'none'; document.getElementById('adminSection').style.display = 'block';
+            setInterval(() => { if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() }); }, 1000);
         }
     });
 
@@ -452,21 +241,7 @@
     });
 
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-
-    let hls;
-    function loadVideo(url) {
-        currentLoadedUrl = url;
-        if (hls) hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); 
-                hls.loadSource(url); 
-                hls.attachMedia(video); 
-            } else { video.src = url; }
-        } else { video.src = url; }
-    }
-
-    function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
+    function clearDB() { syncRef.set(null); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
 </script>
 </body>
