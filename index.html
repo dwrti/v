@@ -18,11 +18,12 @@
         .screen-border { background: #000; padding: 10px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
         
-        /* طبقة الترجمة اللحظية */
-        #caption-overlay {
+        /* تنسيق الترجمة المولدة */
+        #caption-text {
             position: absolute; bottom: 15%; width: 90%; text-align: center;
-            color: #ffff00; font-size: 16px; font-weight: bold; text-shadow: 2px 2px 2px #000;
-            z-index: 10; pointer-events: none; line-height: 1.4;
+            color: #ffff00; font-size: 18px; font-weight: bold;
+            text-shadow: 2px 2px 0px #000; z-index: 10; pointer-events: none;
+            font-family: 'Courier New', monospace; line-height: 1.2;
         }
 
         .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.2; }
@@ -38,7 +39,7 @@
         button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
         button:active { background: #333; }
         button.eject { flex: 1; color: var(--led-red); }
-        button.cc-btn { background: #004400; color: #fff; } /* زر الترجمة */
+        button.gen-cc { background: #004d40; border-color: #00695c; color: #00ff41; }
         #logoutBtn { background: #300; border-color: #600; flex: 1; }
     </style>
 </head>
@@ -49,7 +50,7 @@
         <div class="screen-border">
             <div class="crt-scanlines"></div>
             <div id="no-signal">NO SIGNAL</div>
-            <div id="caption-overlay"></div> <video id="video" controls playsinline muted></video>
+            <div id="caption-text"></div> <video id="video" controls playsinline muted crossorigin="anonymous"></video>
         </div>
     </div>
     <div class="vhs-deck">
@@ -61,7 +62,7 @@
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         <div id="adminPanel" class="admin-controls">
-            <button class="cc-btn" onclick="toggleSpeech()">LIVE CC (AR/EN)</button>
+            <button class="gen-cc" onclick="toggleAutoCC()">GENERATE CC</button>
             <button class="eject" onclick="clearDB()">EJECT</button>
             <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
         </div>
@@ -89,7 +90,7 @@
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
-    const captionOverlay = document.getElementById('caption-overlay');
+    const captionText = document.getElementById('caption-text');
     
     const adminEmail = "t@t.tt";
     let isAuthorized = false;
@@ -97,40 +98,44 @@
     let isFirstLoad = true;
     let heartbeatInterval = null;
 
-    // --- نظام الترجمة اللحظية ---
+    // --- نظام توليد الترجمة اللحظية ---
     let recognition;
-    let isCapturing = false;
+    let isGenerating = false;
 
-    if ('webkitSpeechRecognition' in window) {
-        recognition = new webkitSpeechRecognition();
+    function initRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = 'ar-SA'; // لغة افتراضية
+        recognition.lang = 'ar-SA'; // لغة افتراضية للترجمة
 
         recognition.onresult = (event) => {
             let result = "";
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 result += event.results[i][0].transcript;
             }
-            captionOverlay.innerText = result;
-            // مسح النص تلقائياً بعد فترة قصيرة
-            clearTimeout(window.captionTimeout);
-            window.captionTimeout = setTimeout(() => { captionOverlay.innerText = ""; }, 3000);
+            captionText.innerText = result.toUpperCase();
+            clearTimeout(window.ccHide);
+            window.ccHide = setTimeout(() => { captionText.innerText = ""; }, 3000);
         };
     }
 
-    function toggleSpeech() {
-        if (!isCapturing) {
+    function toggleAutoCC() {
+        if (!recognition) initRecognition();
+        if (!isGenerating) {
             recognition.start();
-            isCapturing = true;
-            alert("الآن يتم الاستماع للترجمة (تحتاج ميكروفون مفعل)");
+            isGenerating = true;
+            statusBadge.innerText = "STATUS: GENERATING CC";
         } else {
             recognition.stop();
-            isCapturing = false;
-            captionOverlay.innerText = "";
+            isGenerating = false;
+            captionText.innerText = "";
+            statusBadge.innerText = "STATUS: ADMIN MODE";
         }
     }
-    // ----------------------------
+    // ---------------------------------
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) {
@@ -166,7 +171,7 @@
         const val = urlInput.value.trim();
         if (!isAuthorized && val.length >= 6) {
             auth.signInWithEmailAndPassword(adminEmail, val).catch(e => {});
-        } else if (isAuthorized && (val.startsWith('http') || val.includes('m3u8'))) {
+        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
             autoSyncLink(val);
         }
     });
@@ -181,7 +186,8 @@
             lastUpdated: Date.now() 
         });
         urlInput.value = ""; 
-        urlInput.placeholder = "SYNCING...";
+        urlInput.placeholder = "SYNCING... PLEASE WAIT";
+        urlInput.blur(); 
         setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
     }
 
