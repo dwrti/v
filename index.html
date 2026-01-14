@@ -175,6 +175,7 @@
             transition: 0.3s;
         }
         .viewer-tape:hover { background: #333; }
+        .active-tape { border-left-color: var(--power-green); background: #222; }
     </style>
 </head>
 <body> 
@@ -232,6 +233,7 @@
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
+    let currentSyncData = null; // لتخزين الحالة الحالية
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -310,19 +312,26 @@
     }
 
     function handleSyncUpdate(data) {
+        currentSyncData = data; // تحديث الحالة الحالية
         if (!isPoweredOn) return;
         if (!data || !data.url) {
             video.style.display = 'none'; video.pause(); toggleStatic(true);
             return;
         }
-        video.style.display = 'block'; toggleStatic(false); 
-        if (!video.src.includes(data.url)) loadVideo(data.url);
-        if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
-        else { if (!video.paused) video.pause(); }
+        
+        if (data.isPlaying) {
+            video.style.display = 'block'; toggleStatic(false); 
+            if (!video.src.includes(data.url)) loadVideo(data.url);
+            if (video.paused) video.play().catch(()=>{});
+        } else {
+            video.pause();
+            video.style.display = 'none';
+            toggleStatic(true);
+        }
+        
         if (Math.abs(video.currentTime - data.currentTime) > 2) { video.currentTime = data.currentTime; }
     }
 
-    // عرض الأشرطة للجميع (مشاهدين وأدمن)
     collectionRef.on('value', (snap) => {
         const list = document.getElementById('tapesList');
         list.innerHTML = '';
@@ -330,16 +339,18 @@
         if (tapes) {
             Object.entries(tapes).forEach(([id, tape]) => {
                 const row = document.createElement('div');
+                const isCurrent = currentSyncData && currentSyncData.url === tape.url && currentSyncData.isPlaying;
+                
                 if (isAdmin) {
                     row.className = 'vhs-row';
                     row.innerHTML = `
                         <input type="text" class="vhs-input" value="${tape.url}" readonly>
-                        <button class="vhs-btn" onclick="playTape('${tape.url}')">PLAY</button>
+                        <button class="vhs-btn" onclick="playTape('${tape.url}')">${isCurrent ? 'STOP' : 'PLAY'}</button>
                         <button class="vhs-btn" style="background:#444; flex:0.2;" onclick="deleteTape('${id}')">X</button>
                     `;
                 } else {
-                    row.className = 'viewer-tape';
-                    row.innerHTML = `📼 VHS TAPE: ${tape.url.substring(0, 20)}...`;
+                    row.className = 'viewer-tape' + (isCurrent ? ' active-tape' : '');
+                    row.innerHTML = isCurrent ? `⏳ NOW PLAYING...` : `📼 VHS TAPE: ${tape.url.substring(0, 20)}...`;
                     row.onclick = () => playTape(tape.url);
                 }
                 list.appendChild(row);
@@ -359,7 +370,19 @@
 
     function playTape(url) {
         if (!isPoweredOn) { alert("PLEASE TURN ON TV FIRST"); return; }
-        syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+        
+        // إذا كان نفس الرابط شغال حالياً، نقوم بإيقافه (Toggle)
+        if (currentSyncData && currentSyncData.url === url && currentSyncData.isPlaying) {
+            syncRef.update({ isPlaying: false, lastUpdated: Date.now() });
+        } else {
+            // تشغيل شريط جديد أو إعادة تشغيل الحالي
+            syncRef.set({ 
+                url: url, 
+                currentTime: 0, 
+                isPlaying: true, 
+                lastUpdated: Date.now() 
+            });
+        }
     }
 
     function deleteTape(id) {
@@ -380,7 +403,9 @@
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             setInterval(() => {
-                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+                if (!video.paused && isAdmin && isPoweredOn) {
+                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+                }
             }, 1000); 
         }
     });
