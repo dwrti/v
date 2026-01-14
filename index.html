@@ -25,27 +25,28 @@
 
         .vhs-deck { background: #111; border-radius: 4px; padding: 15px; border-bottom: 5px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         
-        /* تعديل توزيع شاشة العرض لتكون الحالة في اليسار */
+        /* التعديل هنا: استخدام ltr لضمان بقاء النص جهة اليسار دائماً */
         .display-screen { 
             background: var(--bg-inner); 
             padding: 10px 15px; 
             border-radius: 2px; 
             font-size: 11px; 
             display: flex; 
-            justify-content: flex-start; /* دفع العناصر لليسار */
+            direction: ltr; 
+            justify-content: flex-start;
             border: 1px solid #222; 
             margin-bottom: 12px; 
         }
 
-        #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); cursor: pointer; }
+        #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); cursor: pointer; text-align: left; }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
 
         .slot { background: #000; border: 1px solid #222; height: 45px; display: none; align-items: center; padding: 0 10px; margin-bottom: 12px; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 13px; font-family: inherit; text-align: center; }
 
         .admin-controls { display: none; flex-direction: column; gap: 10px; padding: 10px; background: #0c0c0c; border: 1px solid #1a1a1a; }
-        .admin-info { color: #666; font-size: 10px; display: flex; justify-content: space-between; padding-bottom: 5px; border-bottom: 1px solid #1a1a1a; }
-        .btn-group { display: flex; gap: 8px; }
+        .admin-info { color: #666; font-size: 10px; display: flex; direction: ltr; justify-content: space-between; padding-bottom: 5px; border-bottom: 1px solid #1a1a1a; }
+        .btn-group { display: flex; gap: 8px; direction: ltr; }
         button { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #aaa; cursor: pointer; font-size: 10px; font-family: inherit; }
         button:hover { background: #222; color: #fff; }
         button.eject { color: #822; }
@@ -85,6 +86,7 @@
 </div>
 
 <script>
+    // تهيئة Firebase (بياناتك الأصلية)
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -167,7 +169,7 @@
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            // تعديل: الرجوع لكلمة أوفلاين عند عدم وجود رابط
+            // التعديل هنا ليكون OFFLINE حصراً
             statusBadge.innerText = isAuthorized ? "STATUS: OPERATOR" : "STATUS: OFFLINE";
             statusBadge.classList.remove('online');
             return;
