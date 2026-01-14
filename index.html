@@ -75,6 +75,7 @@
             opacity: 0.9;
         }
 
+        /* تفعيل ظهور شريط التحكم (Controls) */
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
         .control-panel { 
@@ -115,7 +116,7 @@
         <div class="screen-border">
             <div id="tap-overlay">TAP SCREEN TO ACTIVATE AUDIO</div>
             <canvas id="noise-canvas"></canvas>
-            <video id="video" playsinline muted></video>
+            <video id="video" controls playsinline muted></video>
         </div>
     </div>
 
@@ -128,12 +129,9 @@
             <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
             
             <div class="btn-group">
-                <button onclick="controlVideo('play')">PLAY</button>
-                <button onclick="controlVideo('pause')">PAUSE</button>
-                <button style="color: #ff9f43;" onclick="controlVideo('stop')">STOP</button> 
-                <button onclick="seekVideo(-10)">-10s</button>
-                <button onclick="seekVideo(10)">+10s</button>
-                <button style="background: #2c3e50;" onclick="toggleFullScreen()">FULLSCREEN</button>
+                <button onclick="controlVideo('play')">PLAY SYNC</button>
+                <button onclick="controlVideo('pause')">PAUSE SYNC</button>
+                <button style="color: #ff9f43;" onclick="controlVideo('stop')">STOP ALL</button> 
             </div>
 
             <div class="btn-group" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top:10px">
@@ -151,6 +149,7 @@
     const overlay = document.getElementById('tap-overlay');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
 
+    // تهيئة الصوت والوشوشة
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -159,16 +158,6 @@
     }
 
     function hideOverlay() { overlay.style.display = 'none'; }
-
-    function toggleFullScreen() {
-        if (video.requestFullscreen) {
-            video.requestFullscreen();
-        } else if (video.webkitRequestFullscreen) { /* Safari */
-            video.webkitRequestFullscreen();
-        } else if (video.msRequestFullscreen) { /* IE11 */
-            video.msRequestFullscreen();
-        }
-    }
 
     function startStaticSound() {
         if (!audioCtx || noiseNode) return;
@@ -221,14 +210,11 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
+    // وظائف التحكم المركزية للأدمن
     function controlVideo(action) {
         if (action === 'play') syncRef.update({ isPlaying: true });
         if (action === 'pause') syncRef.update({ isPlaying: false });
         if (action === 'stop') syncRef.update({ isPlaying: false, currentTime: 0, lastUpdated: Date.now() });
-    }
-    
-    function seekVideo(sec) {
-        syncRef.update({ currentTime: Math.max(0, video.currentTime + sec), lastUpdated: Date.now() });
     }
 
     auth.onAuthStateChanged(user => {
@@ -236,8 +222,12 @@
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            
+            // تحديث التوقيت بشكل تلقائي للأدمن فقط لضمان المزامنة
             setInterval(() => {
-                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+                if (!video.paused && isAdmin) {
+                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+                }
             }, 5000);
         }
     });
@@ -254,6 +244,7 @@
         }
     });
 
+    // استقبال التحديثات من Firebase
     syncRef.on('value', (snap) => {
         const data = snap.val();
         if (!data || !data.url) {
@@ -262,8 +253,14 @@
             video.style.display = 'block'; toggleStatic(false);
             if (!video.src.includes(data.url)) loadVideo(data.url);
             
-            if (data.isPlaying) video.play().catch(()=>{}); else video.pause();
+            // مزامنة حالة التشغيل (أدمن لمشاهد)
+            if (data.isPlaying) {
+                if (video.paused) video.play().catch(()=>{});
+            } else {
+                if (!video.paused) video.pause();
+            }
 
+            // مزامنة الوقت إذا كان الفرق كبيراً
             if (Math.abs(video.currentTime - data.currentTime) > 3) {
                 video.currentTime = data.currentTime;
             }
