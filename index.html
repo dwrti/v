@@ -52,6 +52,7 @@
             display: flex; 
             align-items: center; 
             justify-content: center; 
+            cursor: pointer; /* ليشعر المشاهد بضرورة الضغط */
         }
 
         #tap-overlay {
@@ -59,6 +60,12 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 12px;
+            color: #444;
         }
 
         #noise-canvas {
@@ -180,14 +187,14 @@
         }
     </style>
 </head>
-<body> 
+<body onclick="handleUserInteraction()"> 
 
 <div class="container">
     <div class="tv-unit">
-        <div class="screen-border">
-            <div id="tap-overlay"></div>
+        <div class="screen-border" id="screenClickArea">
+            <div id="tap-overlay">TAP TO POWER ON</div>
             <canvas id="noise-canvas"></canvas>
-            <video id="video" controls playsinline muted></video>
+            <video id="video" playsinline></video>
         </div>
         
         <div class="tv-controls">
@@ -236,6 +243,7 @@
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
+    let currentSyncData = null;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -253,14 +261,18 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // --- تعديل وظيفة النهاية لتشمل المشاهدين أيضاً ---
-    video.onended = () => {
-        if (isAdmin) {
-            syncRef.set(null); // الآدمن يصفر القاعدة للجميع
-        } else {
-            // المشاهد يصفر جهازه محلياً فوراً ليشاهد التشويش دون انتظار التزامن
-            localEject();
+    // تفعيل الصوت عند أي لمسة للمشاهد لكسر حظر المتصفح
+    function handleUserInteraction() {
+        if (!audioCtx) initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (isPoweredOn && currentSyncData && video.paused) {
+            video.play().catch(e => console.log("Still blocked"));
         }
+    }
+
+    video.onended = () => {
+        if (isAdmin) syncRef.set(null);
+        else localEject();
     };
 
     function localEject() {
@@ -268,7 +280,6 @@
         video.removeAttribute('src');
         video.load();
         video.style.display = 'none';
-        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         toggleStatic(true);
     }
 
@@ -319,7 +330,7 @@
             syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
         } else {
             powerBtn.classList.remove('active');
-            overlay.style.display = 'block';
+            overlay.style.display = 'flex';
             video.style.display = 'none';
             video.pause();
             toggleStatic(false);
@@ -330,12 +341,10 @@
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        video.muted = false;
     }
 
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
-        stopStaticSound();
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -372,9 +381,9 @@
     }
 
     function handleSyncUpdate(data) {
+        currentSyncData = data;
         if (!isPoweredOn) return;
 
-        // استدعاء دالة التنظيف المحلي عند غياب البيانات
         if (!data || !data.url) {
             localEject();
             return;
@@ -391,13 +400,16 @@
         if (data.isPlaying) {
             const timeDiff = (Date.now() - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + (timeDiff > 0 ? timeDiff : 0);
-            if (Math.abs(video.currentTime - targetTime) > 3) {
-                video.currentTime = targetTime;
-            }
-            video.play().catch(()=>{});
+            if (Math.abs(video.currentTime - targetTime) > 3) video.currentTime = targetTime;
+            
+            // محاولة التشغيل مع كتم الصوت إذا فشل التشغيل العادي
+            video.play().catch(() => {
+                video.muted = true;
+                video.play();
+                console.log("Muted autoplay started");
+            });
         } else {
             video.pause();
-            if (Math.abs(video.currentTime - data.currentTime) > 1) video.currentTime = data.currentTime;
         }
     }
 
@@ -408,11 +420,7 @@
             document.getElementById('adminSection').style.display = 'block';
             setInterval(() => {
                 if (!video.paused && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now(),
-                        isPlaying: true 
-                    });
+                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now(), isPlaying: true });
                 }
             }, 2000); 
         }
