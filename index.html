@@ -253,12 +253,24 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة التنظيف عند النهاية
+    // --- تعديل وظيفة النهاية لتشمل المشاهدين أيضاً ---
     video.onended = () => {
         if (isAdmin) {
-            syncRef.set(null); 
+            syncRef.set(null); // الآدمن يصفر القاعدة للجميع
+        } else {
+            // المشاهد يصفر جهازه محلياً فوراً ليشاهد التشويش دون انتظار التزامن
+            localEject();
         }
     };
+
+    function localEject() {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        video.style.display = 'none';
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        toggleStatic(true);
+    }
 
     function addNewTape() {
         const name = document.getElementById('newTapeName').value || "TAPE";
@@ -362,16 +374,9 @@
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
 
-        // --- إصلاح مشكلة التعليق النهائي ---
+        // استدعاء دالة التنظيف المحلي عند غياب البيانات
         if (!data || !data.url) {
-            if (!video.paused || video.src !== "") {
-                video.pause();
-                video.removeAttribute('src'); // حذف المصدر تماماً
-                video.load();
-            }
-            video.style.display = 'none';
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            toggleStatic(true);
+            localEject();
             return;
         }
 
@@ -386,7 +391,7 @@
         if (data.isPlaying) {
             const timeDiff = (Date.now() - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + (timeDiff > 0 ? timeDiff : 0);
-            if (Math.abs(video.currentTime - targetTime) > 2.5) {
+            if (Math.abs(video.currentTime - targetTime) > 3) {
                 video.currentTime = targetTime;
             }
             video.play().catch(()=>{});
