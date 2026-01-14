@@ -98,7 +98,7 @@
             direction: ltr;   
         }
 
-        .btn-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
         button { 
             flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); 
             color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; 
@@ -128,11 +128,6 @@
             <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
             
             <div class="btn-group">
-                <button onclick="controlVideo('play')">PLAY SYNC</button>
-                <button onclick="controlVideo('pause')">PAUSE SYNC</button>
-            </div>
-
-            <div class="btn-group" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top:10px">
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
                 <button onclick="adminLogout()">LOGOUT</button>
             </div>
@@ -207,10 +202,9 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
-    function controlVideo(action) {
-        if (action === 'play') syncRef.update({ isPlaying: true });
-        if (action === 'pause') syncRef.update({ isPlaying: false });
-    }
+    // تحديث الحالة في Firebase عند استخدام مشغل الفيديو الطبيعي
+    video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
+    video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
