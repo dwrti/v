@@ -132,7 +132,6 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
-        /* --- تصميم الأشرطة الجديد --- */
         .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
         
         .vhs-shelf { 
@@ -161,7 +160,6 @@
             border: 1px solid #111;
         }
 
-        /* الملصق الأبيض */
         .vhs-tape::before {
             content: "";
             position: absolute;
@@ -174,7 +172,6 @@
             z-index: 1;
         }
 
-        /* العلامة الحمراء الجانبية */
         .vhs-tape::after {
             content: "";
             position: absolute;
@@ -231,7 +228,7 @@
         <div class="screen-border">
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
-            <video id="video" controls playsinline muted></video>
+            <video id="video" controls playsinline></video>
         </div>
         
         <div class="tv-controls">
@@ -254,7 +251,7 @@
         </div>
         
         <div id="adminSection">
-            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">لوحة التحكم الرئيسية</p>
+            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: نشط</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
@@ -273,7 +270,7 @@
         </div>
     </div>
 
-    <div class="vhs-library-title">هنا الأشرطة المتوفرة:</div>
+    <div class="vhs-library-title">اختر شريطاً للتشغيل:</div>
     <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
@@ -286,6 +283,7 @@
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
 
+    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -302,16 +300,15 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
+    // وظيفة إخراج الشريط (للجميع)
     function publicEject() {
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        video.pause();
-        video.style.display = 'none';
-        toggleStatic(true);
-        syncRef.set(null);
+        syncRef.set(null); // مسح الحالة في قاعدة البيانات للكل
     }
 
+    // إضافة شريط (للأدمن فقط في الـ Rules)
     function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط جديد";
+        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
         const url = document.getElementById('newTapeUrl').value;
         if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
         tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
@@ -324,6 +321,7 @@
         if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
     }
 
+    // تحديث الرف (المكتبة)
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
@@ -340,7 +338,14 @@
             `;
             el.onclick = () => {
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                syncRef.set({ url: tape.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+                // أي مستخدم يضغط هنا يغير الفيديو للكل
+                syncRef.set({ 
+                    url: tape.url, 
+                    currentTime: 0, 
+                    isPlaying: true, 
+                    adminPresent: isAdmin,
+                    lastUpdated: Date.now() 
+                });
             };
             shelf.appendChild(el);
         });
@@ -366,9 +371,9 @@
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        video.muted = false;
     }
 
+    // --- نظام التشويش الصوتي والمرئي ---
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
@@ -406,55 +411,92 @@
         }
     }
 
+    // --- نظام المزامنة الذكي ---
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
         if (!data || !data.url) {
             video.style.display = 'none'; video.pause();
             toggleStatic(true); return;
         }
-        video.style.display = 'block'; toggleStatic(false); 
-        if (!video.src.includes(data.url)) loadVideo(data.url);
-        if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
-        else { if (!video.paused) video.pause(); }
-        if (Math.abs(video.currentTime - data.currentTime) > 2) video.currentTime = data.currentTime;
+
+        video.style.display = 'block'; 
+        toggleStatic(false); 
+
+        // إذا تغير الرابط، حمل الفيديو الجديد
+        if (!video.src.includes(data.url)) {
+            loadVideo(data.url);
+        }
+
+        // التحكم في التشغيل/التوقف
+        if (data.isPlaying) { 
+            if (video.paused) video.play().catch(()=>{}); 
+        } else { 
+            if (!video.paused) video.pause(); 
+        }
+
+        // مزامنة الوقت (حساسية 3 ثواني لمنع التقطع)
+        const timeDiff = Math.abs(video.currentTime - data.currentTime);
+        if (timeDiff > 3) {
+            video.currentTime = data.currentTime;
+        }
     }
 
+    // كشف حالة المسؤول
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            tapesRef.once('value', () => {}); 
-            setInterval(() => {
-                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
-            }, 1000); 
+            
+            // تحديث الوقت للأدمن فقط ليكون هو "المرجع" للكل
+            video.ontimeupdate = () => {
+                if (!video.paused) {
+                    syncRef.update({ 
+                        currentTime: video.currentTime, 
+                        lastUpdated: Date.now(),
+                        adminPresent: true 
+                    });
+                }
+            };
         }
     });
 
+    // تسجيل الدخول للأدمن
     document.getElementById('adminPass').addEventListener('input', (e) => {
         if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
     });
 
+    // إضافة فيديو برابط مباشر
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
-            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+            syncRef.set({ 
+                url: val, 
+                currentTime: 0, 
+                isPlaying: true, 
+                adminPresent: isAdmin,
+                lastUpdated: Date.now() 
+            });
             e.target.value = "";
         }
     });
 
+    // استقبال التحديثات من Firebase للكل
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
 
     let hls;
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } 
-            else { video.src = url; }
+            if (Hls.isSupported()) { 
+                hls = new Hls(); 
+                hls.loadSource(url); 
+                hls.attachMedia(video); 
+            } else { video.src = url; }
         } else { video.src = url; }
     }
 
-    function clearDB() { if (confirm("ADMIN RESET?")) syncRef.set(null); }
+    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set(null); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
 </script>
 </body>
