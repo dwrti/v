@@ -11,24 +11,27 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
+        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; --vhs-blue: #0000ff; }
         body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; overflow-x: hidden; }
         .container { width: 100%; max-width: 500px; }
-        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #333; box-shadow: 0 0 40px rgba(0,0,0,1); position: relative; }
+        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #333; box-shadow: 0 0 40px rgba(0,0,0,1); position: relative; transition: all 0.3s; }
+        .tv-unit.online { border-color: #444; box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); }
         .screen-border { background: #000; padding: 10px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
         .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.2; }
-        #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; }
+        #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; letter-spacing: 2px; }
         .vhs-deck { background: #111; margin-top: 15px; border-radius: 4px; padding: 20px; border-bottom: 6px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         .display-screen { background: #050505; padding: 10px; border-radius: 2px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #222; }
         #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
         .users-count { color: var(--led-green); }
-        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; }
+        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; transition: 0.3s; }
+        .slot:focus-within { border-color: var(--led-green); }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
-        .admin-controls { display: none; gap: 10px; flex-wrap: wrap; }
-        button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
-        button:active { background: #333; }
+        .admin-controls { display: none; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        button:hover { background: #282828; }
+        button:active { background: #333; transform: translateY(1px); }
         button.eject { flex: 1; color: var(--led-red); }
         #logoutBtn { background: #300; border-color: #600; flex: 1; }
     </style>
@@ -36,7 +39,7 @@
 <body>
 
 <div class="container">
-    <div class="tv-unit">
+    <div id="tvUnit" class="tv-unit">
         <div class="screen-border">
             <div class="crt-scanlines"></div>
             <div id="no-signal">NO SIGNAL</div>
@@ -49,10 +52,10 @@
             <span class="users-count">REC ● <span id="count">0</span></span>
         </div>
         <div class="slot">
-            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
+            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE + ENTER">
         </div>
         <div id="adminPanel" class="admin-controls">
-            <button class="eject" onclick="clearDB()">EJECT</button>
+            <button class="eject" onclick="clearDB()">EJECT TAPE</button>
             <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
         </div>
     </div>
@@ -79,15 +82,15 @@
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
+    const tvUnit = document.getElementById('tvUnit');
     
     const adminEmail = "t@t.tt";
-    // ملاحظة: تم حذف passwordSecret من هنا لغرض التشفير والأمان
-    
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
     let heartbeatInterval = null;
 
+    // مراقبة حالة تسجيل الدخول
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) {
             activateAdminMode();
@@ -96,10 +99,11 @@
 
     function activateAdminMode() {
         isAuthorized = true;
-        urlInput.value = ""; 
         urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE LINK TO SYNC";
+        urlInput.value = "";
+        urlInput.placeholder = "PASTE LINK & PRESS ENTER";
         statusBadge.innerText = "STATUS: ADMIN MODE";
+        statusBadge.classList.add('online');
         adminPanel.style.display = "flex";
 
         if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -110,25 +114,33 @@
         }, 5000);
     }
 
-    function adminLogout() {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        auth.signOut().then(() => {
-            isAuthorized = false;
-            location.reload();
-        });
-    }
+    // التعامل مع الإدخال (كلمة سر أو رابط) عند ضغط Enter
+    urlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const val = urlInput.value.trim();
+            if (!val) return;
 
-    urlInput.addEventListener('input', () => {
-        const val = urlInput.value.trim();
-        
-        // التحقق من كلمة السر عبر Firebase مباشرة بدلاً من المقارنة اليدوية
-        if (!isAuthorized && val.length >= 6) {
-            auth.signInWithEmailAndPassword(adminEmail, val)
-                .catch(error => { 
-                    // لا يتم إظهار خطأ هنا للسماح للمستخدم بإكمال الكتابة بسلاسة
-                });
-        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
-            autoSyncLink(val);
+            if (!isAuthorized) {
+                // محاولة تسجيل الدخول
+                auth.signInWithEmailAndPassword(adminEmail, val)
+                    .then(() => {
+                        urlInput.value = "";
+                    })
+                    .catch(err => {
+                        urlInput.value = "";
+                        urlInput.placeholder = "INVALID CODE - TRY AGAIN";
+                        setTimeout(() => { urlInput.placeholder = "ENTER ACCESS CODE + ENTER"; }, 2000);
+                    });
+            } else {
+                // مزامنة رابط جديد
+                if (val.startsWith('http')) {
+                    autoSyncLink(val);
+                } else {
+                    urlInput.value = "";
+                    urlInput.placeholder = "INVALID LINK";
+                    setTimeout(() => { urlInput.placeholder = "PASTE LINK & PRESS ENTER"; }, 2000);
+                }
+            }
         }
     });
 
@@ -142,28 +154,38 @@
             lastUpdated: Date.now() 
         });
         urlInput.value = ""; 
-        urlInput.placeholder = "SYNCING... PLEASE WAIT";
-        urlInput.blur(); 
-        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
+        urlInput.placeholder = "TAPE LOADED...";
+        setTimeout(() => { urlInput.placeholder = "PASTE LINK & PRESS ENTER"; }, 2000);
     }
 
+    // نظام التواجد (Viewers Count)
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
-        if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
+        if (snap.val()) { 
+            myPresenceRef.set(true); 
+            myPresenceRef.onDisconnect().remove(); 
+        }
     });
-    db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
+    db.ref('viewers').on('value', s => {
+        countDisplay.innerText = s.numChildren() || 0;
+    });
 
+    // استقبال المزامنة من قاعدة البيانات
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
+            tvUnit.classList.remove('online');
             statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
             statusBadge.classList.remove('online');
+            document.getElementById('no-signal').style.display = "block";
             return;
         }
 
+        document.getElementById('no-signal').style.display = "none";
         video.style.display = 'block';
+        tvUnit.classList.add('online');
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
 
@@ -176,11 +198,13 @@
             const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + elapsedSinceUpdate;
 
-            if (Math.abs(video.currentTime - targetTime) > 2 || isFirstLoad) {
+            if (Math.abs(video.currentTime - targetTime) > 3 || isFirstLoad) {
                 video.currentTime = targetTime;
                 isFirstLoad = false;
             }
-            if (video.paused) video.play().catch(() => {});
+            if (video.paused) video.play().catch(() => {
+                console.log("Autoplay blocked - Waiting for user interaction");
+            });
         } else {
             video.pause();
             video.currentTime = data.currentTime;
@@ -188,7 +212,7 @@
     });
 
     function syncAction() {
-        if (!isAuthorized) return;
+        if (!isAuthorized || !video.src) return;
         syncRef.update({
             currentTime: video.currentTime,
             isPlaying: !video.paused,
@@ -196,6 +220,7 @@
         });
     }
 
+    // أحداث الفيديو للأدمن فقط
     video.onplay = () => { if(isAuthorized) syncAction(); };
     video.onpause = () => { if(isAuthorized) syncAction(); };
     video.onseeking = () => { if(isAuthorized) syncAction(); };
@@ -214,10 +239,17 @@
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) {
+        if (isAuthorized && confirm("EJECT TAPE AND CLEAR SYNC?")) {
             syncRef.set(null);
             urlInput.value = "";
         }
+    }
+
+    function adminLogout() {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        auth.signOut().then(() => {
+            location.reload();
+        });
     }
 </script>
 </body>
