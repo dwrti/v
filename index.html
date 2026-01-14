@@ -17,15 +17,6 @@
         .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #333; box-shadow: 0 0 40px rgba(0,0,0,1); position: relative; }
         .screen-border { background: #000; padding: 10px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        
-        /* تنسيق الترجمة المولدة */
-        #caption-text {
-            position: absolute; bottom: 15%; width: 90%; text-align: center;
-            color: #ffff00; font-size: 18px; font-weight: bold;
-            text-shadow: 2px 2px 0px #000; z-index: 10; pointer-events: none;
-            font-family: 'Courier New', monospace; line-height: 1.2;
-        }
-
         .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.2; }
         #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; }
         .vhs-deck { background: #111; margin-top: 15px; border-radius: 4px; padding: 20px; border-bottom: 6px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
@@ -39,7 +30,6 @@
         button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
         button:active { background: #333; }
         button.eject { flex: 1; color: var(--led-red); }
-        button.gen-cc { background: #004d40; border-color: #00695c; color: #00ff41; }
         #logoutBtn { background: #300; border-color: #600; flex: 1; }
     </style>
 </head>
@@ -50,7 +40,7 @@
         <div class="screen-border">
             <div class="crt-scanlines"></div>
             <div id="no-signal">NO SIGNAL</div>
-            <div id="caption-text"></div> <video id="video" controls playsinline muted crossorigin="anonymous"></video>
+            <video id="video" controls playsinline muted></video>
         </div>
     </div>
     <div class="vhs-deck">
@@ -62,7 +52,6 @@
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         <div id="adminPanel" class="admin-controls">
-            <button class="gen-cc" onclick="toggleAutoCC()">GENERATE CC</button>
             <button class="eject" onclick="clearDB()">EJECT</button>
             <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
         </div>
@@ -90,52 +79,14 @@
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
-    const captionText = document.getElementById('caption-text');
     
     const adminEmail = "t@t.tt";
+    // ملاحظة: تم حذف passwordSecret من هنا لغرض التشفير والأمان
+    
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
     let heartbeatInterval = null;
-
-    // --- نظام توليد الترجمة اللحظية ---
-    let recognition;
-    let isGenerating = false;
-
-    function initRecognition() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
-
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'ar-SA'; // لغة افتراضية للترجمة
-
-        recognition.onresult = (event) => {
-            let result = "";
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                result += event.results[i][0].transcript;
-            }
-            captionText.innerText = result.toUpperCase();
-            clearTimeout(window.ccHide);
-            window.ccHide = setTimeout(() => { captionText.innerText = ""; }, 3000);
-        };
-    }
-
-    function toggleAutoCC() {
-        if (!recognition) initRecognition();
-        if (!isGenerating) {
-            recognition.start();
-            isGenerating = true;
-            statusBadge.innerText = "STATUS: GENERATING CC";
-        } else {
-            recognition.stop();
-            isGenerating = false;
-            captionText.innerText = "";
-            statusBadge.innerText = "STATUS: ADMIN MODE";
-        }
-    }
-    // ---------------------------------
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) {
@@ -169,8 +120,13 @@
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
+        
+        // التحقق من كلمة السر عبر Firebase مباشرة بدلاً من المقارنة اليدوية
         if (!isAuthorized && val.length >= 6) {
-            auth.signInWithEmailAndPassword(adminEmail, val).catch(e => {});
+            auth.signInWithEmailAndPassword(adminEmail, val)
+                .catch(error => { 
+                    // لا يتم إظهار خطأ هنا للسماح للمستخدم بإكمال الكتابة بسلاسة
+                });
         } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
             autoSyncLink(val);
         }
