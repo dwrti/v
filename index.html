@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync High-Precision</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -179,7 +179,6 @@
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
 
-    // تهيئة Firebase أولاً لضمان وجود البيانات
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -197,15 +196,11 @@
 
     function togglePower() {
         isPoweredOn = !isPoweredOn;
-        
         if (isPoweredOn) {
             powerBtn.classList.add('active');
             overlay.style.display = 'none';
             initAudio();
-            // طلب تحديث فوري للحالة من Firebase عند التشغيل
-            syncRef.once('value', (snap) => {
-                handleSyncUpdate(snap.val());
-            });
+            syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
         } else {
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
@@ -260,22 +255,32 @@
         }
     }
 
-    // فصل منطق التحديث في دالة مستقلة لضمان استدعائها عند التشغيل
     function handleSyncUpdate(data) {
-        if (!isPoweredOn) return; // لا تفعل شيء إذا كان التلفاز مطفأ
+        if (!isPoweredOn || !data || !data.url) {
+            if (isPoweredOn && (!data || !data.url)) {
+                video.style.display = 'none'; video.pause(); toggleStatic(true);
+            }
+            return;
+        }
 
-        if (!data || !data.url) {
-            video.style.display = 'none'; video.pause(); 
-            toggleStatic(true);
+        video.style.display = 'block'; toggleStatic(false);
+        if (!video.src.includes(data.url)) loadVideo(data.url);
+        
+        // مزامنة حالة التشغيل
+        if (data.isPlaying) {
+            if (video.paused) video.play().catch(()=>{});
         } else {
-            video.style.display = 'block'; toggleStatic(false);
-            if (!video.src.includes(data.url)) loadVideo(data.url);
-            if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
-            else { if (!video.paused) video.pause(); }
-            if (Math.abs(video.currentTime - data.currentTime) > 3) { video.currentTime = data.currentTime; }
+            if (!video.paused) video.pause();
+        }
+
+        // مزامنة الوقت بدقة عالية (فرق ثانيتين فقط)
+        const timeDiff = Math.abs(video.currentTime - data.currentTime);
+        if (timeDiff > 2) {
+            video.currentTime = data.currentTime;
         }
     }
 
+    // تحديثات الأدمن
     video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
     video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
 
@@ -284,9 +289,16 @@
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            
+            // تحديث الوقت كل ثانية واحدة لمزامنة دقيقة جداً
             setInterval(() => {
-                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
-            }, 5000);
+                if (!video.paused && isAdmin) {
+                    syncRef.update({ 
+                        currentTime: video.currentTime, 
+                        lastUpdated: Date.now() 
+                    });
+                }
+            }, 1000); 
         }
     });
 
@@ -302,10 +314,7 @@
         }
     });
 
-    // استماع دائم للتغييرات
-    syncRef.on('value', (snap) => {
-        handleSyncUpdate(snap.val());
-    });
+    syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
 
     let hls;
     function loadVideo(url) {
