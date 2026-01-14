@@ -53,19 +53,31 @@
             justify-content: center; 
         }
 
+        /* طبقة الشاشة المطفأة */
         #tap-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6);
+            background: #000;
             z-index: 100;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
+            color: #333; /* لون رمادي غامق للنص وهو طافي */
+            transition: all 0.5s ease;
+        }
+        
+        #tap-overlay.power-on {
+            background: rgba(0,0,0,0.6);
             color: var(--pure-white);
-            font-size: 12px;
-            text-align: center;
-            pointer-events: none;
-            letter-spacing: 2px;
+            display: none; /* سيختفي تماماً بعد التشغيل */
+        }
+
+        .power-text {
+            font-size: 14px;
+            letter-spacing: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
         }
 
         #noise-canvas {
@@ -73,6 +85,7 @@
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
+            display: none; /* يبدأ مخفي */
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
@@ -111,9 +124,12 @@
 <body onclick="initAudio()"> 
 
 <div class="container">
-    <div class="tv-unit" onclick="hideOverlay()">
+    <div class="tv-unit" onclick="powerOnTV()">
         <div class="screen-border">
-            <div id="tap-overlay">TAP SCREEN TO ACTIVATE AUDIO</div>
+            <div id="tap-overlay">
+                <div class="power-text">POWER OFF</div>
+                <div style="font-size: 9px; margin-top: 10px; color: #222;">CLICK TO POWER ON</div>
+            </div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline muted></video>
         </div>
@@ -141,18 +157,35 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
+    let isPoweredOn = false;
+
+    // دالة تشغيل التلفاز عند الضغط
+    function powerOnTV() {
+        if (!isPoweredOn) {
+            isPoweredOn = true;
+            overlay.classList.add('power-on');
+            overlay.style.display = 'none';
+            initAudio(); // تشغيل محرك الصوت
+            
+            // البدء بالتشويش إذا لم يكن هناك فيديو يعمل
+            syncRef.once('value', (snap) => {
+                const data = snap.val();
+                if (!data || !data.url) {
+                    toggleStatic(true);
+                }
+            });
+        }
+    }
 
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
         video.muted = false;
-        if (canvas.style.display !== 'none') startStaticSound();
+        // سيتم استدعاء startStaticSound داخل toggleStatic
     }
 
-    function hideOverlay() { overlay.style.display = 'none'; }
-
     function startStaticSound() {
-        if (!audioCtx || noiseNode) return;
+        if (!audioCtx || noiseNode || !isPoweredOn) return;
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -167,6 +200,7 @@
     function stopStaticSound() { if (noiseNode) { noiseNode.stop(); noiseNode = null; } }
 
     function loopNoise() {
+        if (!isPoweredOn) return;
         canvas.width = 200; canvas.height = 150;
         const idata = ctx.createImageData(canvas.width, canvas.height);
         const b32 = new Uint32Array(idata.data.buffer);
@@ -176,6 +210,7 @@
     }
 
     function toggleStatic(show) {
+        if (!isPoweredOn) return;
         if (show) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
@@ -202,7 +237,6 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
-    // تحديث الحالة في Firebase عند استخدام مشغل الفيديو الطبيعي
     video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
     video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
 
@@ -232,19 +266,15 @@
     syncRef.on('value', (snap) => {
         const data = snap.val();
         if (!data || !data.url) {
-            video.style.display = 'none'; video.pause(); toggleStatic(true);
+            video.style.display = 'none'; video.pause(); 
+            if (isPoweredOn) toggleStatic(true);
         } else {
-            video.style.display = 'block'; toggleStatic(false);
-            if (!video.src.includes(data.url)) loadVideo(data.url);
-            
-            if (data.isPlaying) {
-                if (video.paused) video.play().catch(()=>{});
-            } else {
-                if (!video.paused) video.pause();
-            }
-
-            if (Math.abs(video.currentTime - data.currentTime) > 3) {
-                video.currentTime = data.currentTime;
+            if (isPoweredOn) {
+                video.style.display = 'block'; toggleStatic(false);
+                if (!video.src.includes(data.url)) loadVideo(data.url);
+                if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
+                else { if (!video.paused) video.pause(); }
+                if (Math.abs(video.currentTime - data.currentTime) > 3) { video.currentTime = data.currentTime; }
             }
         }
     });
@@ -261,8 +291,6 @@
 
     function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
-
-    toggleStatic(true);
 </script>
 </body>
 </html>
