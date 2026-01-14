@@ -21,11 +21,9 @@
         #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; }
         .vhs-deck { background: #111; margin-top: 15px; border-radius: 4px; padding: 20px; border-bottom: 6px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         .display-screen { background: #050505; padding: 10px; border-radius: 2px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #222; }
-        /* جعل كلمة Status قابلة للنقر لفتح لوحة التحكم */
         #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); cursor: pointer; }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
         .users-count { color: var(--led-green); }
-        /* إخفاء السلوت (الفتحة) بشكل افتراضي */
         .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: none; align-items: center; padding: 0 10px; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
         .admin-controls { display: none; gap: 10px; flex-wrap: wrap; }
@@ -48,13 +46,16 @@
     <div class="vhs-deck">
         <div class="display-screen">
             <span id="status" onclick="toggleSlot()">STATUS: OFFLINE</span>
-            <span class="users-count">REC ● <span id="count">0</span></span>
+            <span class="users-count">REC ●</span>
         </div>
         <div class="slot" id="vhsSlot">
-            <input type="password" id="videoUrl" placeholder="INSERT TAPE CODE">
+            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         <div id="adminPanel" class="admin-controls">
-            <button class="eject" onclick="clearDB()">EJECT TAPE</button>
+            <div style="width: 100%; color: var(--led-green); font-size: 11px; margin-bottom: 10px; border-left: 2px solid var(--led-green); padding-left: 10px;">
+                VIEWERS: <span id="count">0</span>
+            </div>
+            <button class="eject" onclick="clearDB()">EJECT</button>
             <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
         </div>
     </div>
@@ -89,7 +90,6 @@
     let isFirstLoad = true;
     let heartbeatInterval = null;
 
-    // وظيفة لإظهار/إخفاء فتحة الشريط
     function toggleSlot() {
         vhsSlot.style.display = (vhsSlot.style.display === 'flex') ? 'none' : 'flex';
     }
@@ -105,30 +105,32 @@
         vhsSlot.style.display = 'flex';
         urlInput.value = ""; 
         urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE LINK & PRESS ENTER";
+        urlInput.placeholder = "PASTE LINK TO SYNC";
         statusBadge.innerText = "STATUS: ADMIN MODE";
         adminPanel.style.display = "flex";
 
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval = setInterval(() => {
             if (isAuthorized && !video.paused) {
-                syncAction(false); 
+                syncAction();
             }
-        }, 3000); 
+        }, 5000);
+    }
+
+    function adminLogout() {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        auth.signOut().then(() => {
+            isAuthorized = false;
+            location.reload();
+        });
     }
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
         if (!isAuthorized && val.length >= 6) {
             auth.signInWithEmailAndPassword(adminEmail, val).catch(() => {});
-        }
-    });
-
-    // إضافة مستمع لزر Enter للسرعة
-    urlInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && isAuthorized) {
-            const val = urlInput.value.trim();
-            if (val.startsWith('http')) autoSyncLink(val);
+        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
+            autoSyncLink(val);
         }
     });
 
@@ -142,18 +144,17 @@
             lastUpdated: Date.now() 
         });
         urlInput.value = ""; 
-        urlInput.placeholder = "TAPE LOADED!";
-        setTimeout(() => { urlInput.placeholder = "PASTE LINK & PRESS ENTER"; }, 2000);
+        urlInput.placeholder = "SYNCING... PLEASE WAIT";
+        urlInput.blur(); 
+        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
     }
 
-    // نظام الوجود (Viewers)
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // استلام البيانات
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
@@ -188,7 +189,7 @@
         }
     });
 
-    function syncAction(immediate = true) {
+    function syncAction() {
         if (!isAuthorized) return;
         syncRef.update({
             currentTime: video.currentTime,
@@ -197,7 +198,6 @@
         });
     }
 
-    // أحداث الفيديو للتزامن اللحظي
     video.onplay = () => { if(isAuthorized) syncAction(); };
     video.onpause = () => { if(isAuthorized) syncAction(); };
     video.onseeking = () => { if(isAuthorized) syncAction(); };
@@ -216,14 +216,10 @@
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT TAPE?")) {
+        if (isAuthorized && confirm("EJECT?")) {
             syncRef.set(null);
             urlInput.value = "";
         }
-    }
-
-    function adminLogout() {
-        auth.signOut().then(() => location.reload());
     }
 </script>
 </body>
