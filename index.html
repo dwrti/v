@@ -17,30 +17,38 @@
         
         .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
 
-        /* الشاشة - فوكس كامل على المحتوى */
         .tv-unit { background: #111; padding: 8px; border-radius: 4px; border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         .screen-border { background: #000; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
         #no-signal { position: absolute; color: #1a1a1a; font-size: 12px; font-weight: bold; letter-spacing: 3px; }
 
-        /* منطقة التحكم - تصميم احترافي */
         .control-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 20px; }
         
         .panel-title { font-size: 10px; color: #444; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 8px; display: flex; justify-content: space-between; }
 
-        /* حقول الإدخال */
         .input-wrapper { position: relative; margin-bottom: 15px; }
-        input { width: 100%; background: #000; border: 1px solid #222; color: var(--accent); padding: 12px; outline: none; font-family: inherit; font-size: 13px; box-sizing: border-box; transition: 0.3s; }
-        input:focus { border-color: #333; }
+        
+        /* تعديل المحاذاة لليسار placeholder و النص */
+        input { 
+            width: 100%; 
+            background: #000; 
+            border: 1px solid #222; 
+            color: var(--accent); 
+            padding: 12px; 
+            outline: none; 
+            font-family: inherit; 
+            font-size: 13px; 
+            box-sizing: border-box; 
+            text-align: left; /* المحاذاة لليسار */
+            direction: ltr;   /* كتابة من اليسار لليمين */
+        }
 
-        /* الأزرار */
         .btn-group { display: flex; gap: 10px; }
-        button { flex: 1; padding: 12px; background: #000; border: 1px solid #222; color: #666; cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; transition: 0.2s; }
+        button { flex: 1; padding: 12px; background: #000; border: 1px solid #222; color: #666; cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; }
         button:hover { border-color: #444; color: #fff; }
         .btn-danger { color: #511; }
         .btn-danger:hover { color: #ff4444; border-color: #411; }
 
-        /* قسم الدخول الواضح */
         #authSection { display: block; }
         #adminSection { display: none; }
     </style>
@@ -58,7 +66,6 @@
     <div class="control-panel">
         
         <div id="authSection">
-            <div class="panel-title">SYSTEM ACCESS REQUIRED</div>
             <div class="input-wrapper">
                 <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
             </div>
@@ -82,7 +89,6 @@
 </div>
 
 <script>
-    // بياناتك الأصلية كما هي بدون تغيير
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -110,15 +116,14 @@
     let hls = new Hls();
     let isFirstLoad = true;
 
-    // مراقبة حالة التسجيل
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) activateAdminMode();
     });
 
     function activateAdminMode() {
         isAuthorized = true;
-        authSection.style.display = 'none'; // إخفاء الدخول
-        adminSection.style.display = 'block'; // إظهار التحكم
+        authSection.style.display = 'none';
+        adminSection.style.display = 'block';
         
         setInterval(() => {
             if (isAuthorized && !video.paused) syncAction();
@@ -129,14 +134,12 @@
         auth.signOut().then(() => location.reload());
     }
 
-    // تسجيل الدخول التلقائي عند كتابة الباسورد (منطق كودك الأصلي)
     adminPass.addEventListener('input', () => {
         if (adminPass.value.length >= 6) {
             auth.signInWithEmailAndPassword(adminEmail, adminPass.value).catch(() => {});
         }
     });
 
-    // منطق اللصق للأدمن (منطق كودك الأصلي)
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
         if (isAuthorized && val.startsWith('http')) {
@@ -147,14 +150,12 @@
         }
     });
 
-    // عداد المشاهدين
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // التزامن اللحظي للجميع (منطق كودك الأصلي)
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
