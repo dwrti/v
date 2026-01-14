@@ -2,8 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>VHS Cinema Experience</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VHS Sync Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -11,166 +11,161 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { --navy: #151b4e; --white: #ffffff; }
+        :root { 
+            --target-navy: #151b4e; 
+            --dark-navy: #0d1131;   
+            --pure-white: #ffffff;
+        }
         
-        /* جعل الصفحة تغطي كامل مساحة الهاتف حتى منطقة النوتش */
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            background-color: #000; font-family: 'Courier New', monospace;
-            overflow: hidden; position: fixed;
+        body { 
+            background-color: var(--target-navy); 
+            font-family: 'Courier New', monospace; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            margin: 0; 
+            padding: 20px; 
+            color: var(--pure-white);
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--target-navy) 0%, var(--dark-navy) 100%);
+            overflow-x: hidden;
+        }
+        
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
+
+        .tv-unit { 
+            background: var(--target-navy); 
+            padding: 8px; 
+            border-radius: 4px; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            cursor: pointer; /* ليشعر المستخدم أنه يمكنه الضغط لتفعيل الصوت */
         }
 
-        /* الحاوية الرئيسية بوضع ملء الشاشة المطلق */
-        .cinema-viewport {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1;
+        .screen-border { 
+            background: #000; 
+            aspect-ratio: 16 / 9; 
+            position: relative; 
+            overflow: hidden; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
         }
 
-        /* التشويش البرمجي يملأ الخلفية */
         #noise-canvas {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2; opacity: 0.8;
+            z-index: 1;
+            opacity: 0.9;
+            display: block;
         }
 
-        /* الفيديو - تم ضبطه ليغطي كامل الشاشة حرفياً */
-        video { 
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%; 
-            object-fit: fill; /* هذا يضمن تمدد الفيديو ليملأ كل الزوايا بدون فراغات */
-            z-index: 3; display: none; 
+        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
+
+        .control-panel { 
+            background: var(--target-navy); 
+            border: 1px solid rgba(255,255,255,0.1); 
+            border-radius: 4px; 
+            padding: 20px; 
+        }
+        
+        input { 
+            width: 100%; 
+            background: var(--dark-navy); 
+            border: 1px solid rgba(255,255,255,0.2); 
+            color: var(--pure-white); 
+            padding: 12px; 
+            outline: none; 
+            font-family: inherit; 
+            font-size: 13px; 
+            box-sizing: border-box; 
+            text-align: left; 
+            direction: ltr;   
+        }
+        input::placeholder { color: var(--pure-white); opacity: 0.8; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        button { 
+            flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); 
+            color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; 
         }
 
-        /* بوابة الدخول - شفافة وعائمة في المنتصف */
-        #auth-gate {
-            position: absolute;
-            z-index: 100;
-            width: 80%;
-            max-width: 300px;
-            background: rgba(21, 27, 78, 0.7);
-            border: 1px solid var(--white);
-            padding: 20px;
-            text-align: center;
-            backdrop-filter: blur(8px);
-            border-radius: 2px;
-        }
-
-        .input-style {
-            width: 100%;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid var(--white);
-            color: var(--white);
-            padding: 12px;
-            text-align: center;
-            font-family: inherit;
-            outline: none;
-            box-sizing: border-box;
-        }
-
-        /* لوحة المشرف - مخفية في الأسفل لتظهر عند الحاجة */
-        #admin-panel {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 110;
-            width: 85%;
-            max-width: 400px;
-            display: none;
-            background: rgba(21, 27, 78, 0.9);
-            padding: 15px;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-
-        .count-badge {
-            position: absolute;
-            top: env(safe-area-inset-top, 20px); /* يراعي مكان الكاميرا في الآيفون */
-            right: 20px;
-            background: rgba(0,0,0,0.5);
-            color: #00ff00;
-            padding: 20px 10px;
-            font-size: 10px;
-            z-index: 150;
-            border-radius: 50%;
-            border: 1px solid rgba(0,255,0,0.3);
-        }
-
-        .admin-btns { display: flex; gap: 8px; margin-top: 10px; }
-        button { flex: 1; background: #151b4e; border: 1px solid #fff; color: #fff; padding: 10px; cursor: pointer; font-size: 9px; }
+        #authSection { display: block; }
+        #adminSection { display: none; }
     </style>
 </head>
-<body onclick="activateTheater()">
-
-    <div class="cinema-viewport">
-        <div id="user-count-badge" class="count-badge">● <span id="user-count">0</span></div>
-        
-        <canvas id="noise-canvas"></canvas>
-        <video id="video-player" playsinline muted autoplay></video>
-
-        <div id="auth-gate">
-            <input type="password" id="pass-input" class="input-style" placeholder="ENTER ACCESS CODE">
-        </div>
-
-        <div id="admin-panel">
-            <input type="text" id="url-input" class="input-style" placeholder="PASTE LINK HERE">
-            <div class="admin-btns">
-                <button onclick="ejectStream()" style="color: #ff4d4d;">EJECT</button>
-                <button onclick="logoutAdmin()">LOGOUT</button>
-            </div>
+<body onclick="initAudio()"> <div class="container">
+    <div class="tv-unit" title="Click to unmute static">
+        <div class="screen-border">
+            <canvas id="noise-canvas"></canvas>
+            <video id="video" controls playsinline muted></video>
         </div>
     </div>
 
-    <audio id="noise-audio" loop>
+    <audio id="static-audio" loop>
         <source src="https://www.soundjay.com/tv-static-05.mp3" type="audio/mpeg">
     </audio>
+
+    <div class="control-panel">
+        <div id="authSection">
+            <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
+        </div>
+        <div id="adminSection">
+            <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
+            <div class="btn-group">
+                <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
+                <button onclick="adminLogout()">LOGOUT</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     const canvas = document.getElementById('noise-canvas');
     const ctx = canvas.getContext('2d');
-    const noiseAudio = document.getElementById('noise-audio');
-    const video = document.getElementById('video-player');
-    const authGate = document.getElementById('auth-gate');
-    const adminPanel = document.getElementById('admin-panel');
-    let noiseID, audioActive = false;
+    const staticAudio = document.getElementById('static-audio');
+    let noiseID;
+    let audioInitialized = false;
 
-    // تفعيل وضع السينما (الصوت والتشويش)
-    function activateTheater() {
-        if (!audioActive) {
-            noiseAudio.play().then(() => { if(video.style.display === 'block') noiseAudio.pause(); }).catch(() => {});
-            audioActive = true;
+    // تفعيل الصوت عند أول ضغطة للمستخدم
+    function initAudio() {
+        if (!audioInitialized) {
+            staticAudio.play().then(() => {
+                if (canvas.style.display === 'none') staticAudio.pause();
+                audioInitialized = true;
+            }).catch(e => console.log("Audio waiting for user interaction"));
         }
     }
 
-    function renderStatic() {
-        canvas.width = 300; canvas.height = 200;
+    function createNoise() {
+        canvas.width = 200; canvas.height = 150;
         const idata = ctx.createImageData(canvas.width, canvas.height);
-        const b32 = new Uint32Array(idata.data.buffer);
-        for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
+        const buffer32 = new Uint32Array(idata.data.buffer);
+        for (let i = 0; i < buffer32.length; i++) {
+            buffer32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
+        }
         ctx.putImageData(idata, 0, 0);
-        noiseID = requestAnimationFrame(renderStatic);
     }
 
-    function setMode(isStreaming) {
-        if (!isStreaming) {
-            video.style.display = 'none';
+    function loopNoise() {
+        createNoise();
+        noiseID = requestAnimationFrame(loopNoise);
+    }
+
+    function toggleStatic(show) {
+        if (show) {
             canvas.style.display = 'block';
-            if (!noiseID) renderStatic();
-            if (audioActive) noiseAudio.play().catch(() => {});
+            if (!noiseID) loopNoise();
+            if (audioInitialized) staticAudio.play().catch(() => {});
         } else {
             canvas.style.display = 'none';
-            video.style.display = 'block';
-            cancelAnimationFrame(noiseID); noiseID = null;
-            noiseAudio.pause();
+            cancelAnimationFrame(noiseID);
+            noiseID = null;
+            staticAudio.pause();
         }
     }
 
-    // --- Firebase Core (لا نلمس منطق عملك الأصلي) ---
+    // --- كود Firebase الأصلي (بدون تغيير) ---
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -185,47 +180,52 @@
     const db = firebase.database();
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
+    const video = document.getElementById('video');
+    const adminPass = document.getElementById('adminPass');
+    const urlInput = document.getElementById('videoUrl');
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
-            authGate.style.display = 'none';
-            adminPanel.style.display = 'block';
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'block';
         }
     });
 
-    document.getElementById('pass-input').addEventListener('input', (e) => {
-        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(() => {});
+    adminPass.addEventListener('input', () => {
+        if (adminPass.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", adminPass.value).catch(() => {});
     });
 
-    document.getElementById('url-input').addEventListener('input', (e) => {
-        const val = e.target.value.trim();
+    urlInput.addEventListener('input', () => {
+        const val = urlInput.value.trim();
         if (val.startsWith('http')) {
             syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
-            e.target.value = "";
+            urlInput.value = "";
         }
     });
 
-    syncRef.on('value', snap => {
+    syncRef.on('value', (snap) => {
         const data = snap.val();
         if (!data || !data.url) {
-            setMode(false);
+            video.style.display = 'none';
+            toggleStatic(true);
             video.pause();
         } else {
-            setMode(true);
-            if (video.src !== data.url && !video.src.includes(data.url)) loadAndPlay(data.url);
+            video.style.display = 'block';
+            toggleStatic(false);
+            if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
         }
     });
 
-    function loadAndPlay(url) {
+    function loadVideo(url) {
+        let hls = new Hls(); hls.destroy();
         if (url.includes('.m3u8')) {
-            const hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
         } else { video.src = url; }
         video.play().catch(() => {});
     }
 
-    db.ref('viewers').on('value', s => document.getElementById('user-count').innerText = s.numChildren());
-    function ejectStream() { if (confirm("EJECT?")) syncRef.set(null); }
-    function logoutAdmin() { auth.signOut().then(() => location.reload()); }
+    function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
+    function adminLogout() { auth.signOut().then(() => location.reload()); }
 </script>
 </body>
 </html>
