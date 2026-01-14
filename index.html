@@ -253,6 +253,14 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
+    // وظيفة مراقبة نهاية الفيديو
+    video.onended = () => {
+        // إذا كان المتصفح هو متصفح الآدمن، نقوم بمسح الرابط من الداتابيز ليعود التشويش للجميع
+        if (isAdmin) {
+            syncRef.set(null);
+        }
+    };
+
     function addNewTape() {
         const name = document.getElementById('newTapeName').value || "شريط جديد";
         const url = document.getElementById('newTapeUrl').value;
@@ -279,13 +287,12 @@
             el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>${tape.name}`;
             el.onclick = () => {
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                // تعديل هنا: المشاهد يرسل طلب تشغيل بـ وقت 0 وبصمة زمنية جديدة
                 syncRef.set({ 
                     url: tape.url, 
                     currentTime: 0, 
                     isPlaying: true, 
                     lastUpdated: Date.now(),
-                    forcePlay: Math.random() // لضمان أن المتصفح يلاحظ التغيير
+                    forcePlay: Math.random()
                 });
             };
             shelf.appendChild(el);
@@ -359,21 +366,14 @@
             toggleStatic(true); return;
         }
         video.style.display = 'block'; toggleStatic(false); 
-        
-        // إذا كان الرابط جديداً، قم بتحميله
         if (!video.src.includes(data.url)) {
             loadVideo(data.url);
             video.currentTime = data.currentTime;
         }
-
         if (data.isPlaying) {
-            // حساب فرق الوقت الحقيقي
             const timeDiff = (Date.now() - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + (timeDiff > 0 ? timeDiff : 0);
-            
-            if (Math.abs(video.currentTime - targetTime) > 2) {
-                video.currentTime = targetTime;
-            }
+            if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
             video.play().catch(()=>{});
         } else {
             video.pause();
@@ -386,9 +386,7 @@
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            tapesRef.once('value', () => {}); 
             setInterval(() => {
-                // الآدمن فقط هو من يرسل التحديثات الدورية للوقت لضمان المزامنة
                 if (!video.paused && isAdmin) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
