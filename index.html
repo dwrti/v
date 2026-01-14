@@ -301,20 +301,15 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // --- وظيفة الضغط على زر الطاقة ---
     function handlePowerClick() {
-        // إذا الأدمن موجود وأنت لست الأدمن، لا يمكنك التحكم
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، هو فقط من يتحكم بالطاقة حالياً");
             return;
         }
-        
-        // عكس حالة الطاقة وإرسالها للجميع
         const nextState = !isPoweredOn;
         syncRef.update({ tvPower: nextState });
     }
 
-    // تطبيق الحالة فعلياً على الجهاز
     function applyPowerState(state) {
         isPoweredOn = state;
         if (isPoweredOn) {
@@ -334,8 +329,7 @@
 
     function publicEject() {
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        syncRef.set(null);
-        syncRef.update({ tvPower: true }); // الحفاظ على التلفزيون شغال بعد الإخراج
+        syncRef.set({ tvPower: true, isPlaying: false, url: null });
     }
 
     function addNewTape() {
@@ -368,6 +362,8 @@
             `;
             el.onclick = () => {
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                // تفعيل الصوت والتشغيل برمجياً قبل إرسال البيانات للتغلب على قيود المتصفح
+                video.play().catch(() => {}); 
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -437,12 +433,10 @@
     function handleSyncUpdate(data) {
         if (!data) return;
 
-        // تحديث حالة الطاقة العالمية
         if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
             applyPowerState(data.tvPower);
         }
 
-        // تحديث حالة وجود الأدمن
         globalAdminPresent = data.adminPresent || false;
 
         if (!isPoweredOn) return;
@@ -456,18 +450,26 @@
         video.style.display = 'block'; 
         toggleStatic(false); 
         
-        if (!video.src.includes(data.url)) loadVideo(data.url);
+        if (!video.src.includes(data.url)) {
+            loadVideo(data.url);
+        }
 
+        // إجبار المتصفح على بدء التشغيل إذا كانت القيمة قادمة من السيرفر كـ True
         if (data.isPlaying) { 
-            if (video.paused) video.play().catch(()=>{}); 
+            video.play().catch(error => {
+                console.log("Autoplay blocked, waiting for user interaction");
+                // إذا تم الحظر، نجرب كتم الصوت كحل أخير للتشغيل التلقائي
+                video.muted = true;
+                video.play();
+            }); 
         } else { 
-            if (!video.paused) video.pause(); 
+            video.pause(); 
         }
 
         const timeDiff = Math.abs(video.currentTime - data.currentTime);
         if (timeDiff > 3) video.currentTime = data.currentTime;
         
-        setTimeout(() => { isRemoteUpdate = false; }, 100);
+        setTimeout(() => { isRemoteUpdate = false; }, 150);
     }
 
     auth.onAuthStateChanged(user => {
@@ -476,11 +478,10 @@
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             
-            // إبلاغ القاعدة بوجود الأدمن فور دخوله
             syncRef.update({ adminPresent: true });
 
             video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate) {
+                if (!video.paused && !isRemoteUpdate && isAdmin) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
                         lastUpdated: Date.now(),
@@ -489,7 +490,6 @@
                 }
             };
 
-            // عند خروج الأدمن (إغلاق الصفحة)
             window.addEventListener('beforeunload', () => {
                 syncRef.update({ adminPresent: false });
             });
@@ -526,7 +526,7 @@
         } else { video.src = url; }
     }
 
-    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set(null); }
+    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
     function adminLogout() { 
         syncRef.update({ adminPresent: false });
         auth.signOut().then(() => location.reload()); 
