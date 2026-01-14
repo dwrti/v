@@ -282,6 +282,7 @@
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
+    let isRemoteUpdate = false; // لمنع اللوب اللانهائي عند تحديث الحالة
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -405,17 +406,33 @@
         }
     }
 
+    // --- مراقبة الأحداث للجميع (أدمن ومشاهدين) لضمان التزامن عند الضغط اليدوي ---
+    video.onpause = () => {
+        if (!isRemoteUpdate && isPoweredOn) {
+            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
+        }
+    };
+
+    video.onplay = () => {
+        if (!isRemoteUpdate && isPoweredOn) {
+            syncRef.update({ isPlaying: true, currentTime: video.currentTime });
+        }
+    };
+
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
         if (!data || !data.url) {
             video.style.display = 'none'; video.pause();
             toggleStatic(true); return;
         }
+        
+        isRemoteUpdate = true; // تفعيل وضع التحديث الخارجي لتعطيل الـ listeners مؤقتاً
+        
         video.style.display = 'block'; 
         toggleStatic(false); 
+        
         if (!video.src.includes(data.url)) loadVideo(data.url);
 
-        // التزامن مع حالة التشغيل والإيقاف
         if (data.isPlaying) { 
             if (video.paused) video.play().catch(()=>{}); 
         } else { 
@@ -424,6 +441,8 @@
 
         const timeDiff = Math.abs(video.currentTime - data.currentTime);
         if (timeDiff > 3) video.currentTime = data.currentTime;
+        
+        setTimeout(() => { isRemoteUpdate = false; }, 100); // إعادة التفعيل بعد التحديث
     }
 
     auth.onAuthStateChanged(user => {
@@ -432,25 +451,15 @@
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             
-            // مراقب وقت الأدمن
+            // تحديث الوقت المستمر في قاعدة البيانات للأدمن فقط ليكون هو المصدر
             video.ontimeupdate = () => {
-                if (!video.paused && isAdmin) {
+                if (!video.paused && !isRemoteUpdate) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
                         lastUpdated: Date.now(),
                         adminPresent: true 
                     });
                 }
-            };
-
-            // مراقب إيقاف الأدمن
-            video.onpause = () => {
-                if (isAdmin) syncRef.update({ isPlaying: false, currentTime: video.currentTime });
-            };
-
-            // مراقب تشغيل الأدمن
-            video.onplay = () => {
-                if (isAdmin) syncRef.update({ isPlaying: true, currentTime: video.currentTime });
             };
         }
     });
