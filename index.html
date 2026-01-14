@@ -132,50 +132,6 @@
 
         #authSection { display: block; }
         #adminSection { display: none; }
-
-        .tape-rack {
-            margin-top: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .vhs-row {
-            display: flex;
-            gap: 5px;
-            background: rgba(0,0,0,0.3);
-            padding: 5px;
-            border-radius: 3px;
-            align-items: center;
-        }
-        .vhs-input {
-            flex: 2;
-            font-size: 10px;
-            padding: 8px;
-            background: #000;
-            color: white;
-            border: none;
-        }
-        .vhs-btn {
-            flex: 0.4;
-            padding: 8px;
-            font-size: 9px;
-            background: var(--target-navy);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
-            cursor: pointer;
-        }
-        .viewer-tape {
-            width: 100%;
-            background: #1a1a1a;
-            border-left: 4px solid #fff;
-            padding: 10px;
-            font-size: 10px;
-            cursor: pointer;
-            text-align: center;
-            transition: 0.3s;
-        }
-        .viewer-tape:hover { background: #333; }
-        .active-tape { border-left-color: var(--power-green); background: #222; }
     </style>
 </head>
 <body> 
@@ -205,22 +161,9 @@
         <div id="adminSection">
             <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
             <div class="btn-group">
-                <button onclick="adminLogout()">LOGOUT</button>
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
+                <button onclick="adminLogout()">LOGOUT</button>
             </div>
-
-            <div class="tape-rack">
-                <p style="font-size: 9px; color: gray; text-align: center; margin: 15px 0 5px 0;">ADD NEW TAPE</p>
-                <div class="vhs-row">
-                    <input type="text" id="newTapeInput" class="vhs-input" placeholder="PASTE URL...">
-                    <button class="vhs-btn" onclick="addNewTape()">SAVE</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="tape-rack" id="publicRack">
-            <p style="font-size: 9px; color: gray; text-align: center; margin: 15px 0 5px 0;">TAPE COLLECTION</p>
-            <div id="tapesList"></div>
         </div>
     </div>
 </div>
@@ -233,7 +176,6 @@
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
-    let currentSyncData = null; // لتخزين الحالة الحالية
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -249,7 +191,6 @@
     const db = firebase.database();
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
-    const collectionRef = db.ref('tapeCollection');
 
     function togglePower() {
         isPoweredOn = !isPoweredOn;
@@ -263,6 +204,7 @@
             overlay.style.display = 'block';
             video.style.display = 'none';
             video.pause();
+            // إيقاف التشويش والصوت تماماً عند الإطفاء
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
         }
@@ -275,20 +217,30 @@
     }
 
     function startStaticSound() {
+        // لا تشغل الصوت أبداً إذا كان التلفزيون مطفأ
         if (!audioCtx || noiseNode || !isPoweredOn) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        
         noiseNode = audioCtx.createBufferSource();
         noiseNode.buffer = buffer; 
         noiseNode.loop = true;
+        
         const gainNode = audioCtx.createGain();
         gainNode.gain.value = 0.04;
         noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
         noiseNode.start();
     }
 
-    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
+    function stopStaticSound() { 
+        if (noiseNode) { 
+            try { noiseNode.stop(); } catch(e) {} 
+            noiseNode = null; 
+        } 
+    }
 
     function loopNoise() {
         if (!isPoweredOn) return;
@@ -304,90 +256,59 @@
         if (show && isPoweredOn) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            stopStaticSound(); startStaticSound();
+            stopStaticSound();
+            startStaticSound();
         } else {
+            // إيقاف الصورة والصوت عند الإطفاء أو عند وجود فيديو
             canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); noiseID = null; stopStaticSound();
+            cancelAnimationFrame(noiseID); 
+            noiseID = null;
+            stopStaticSound();
         }
     }
 
     function handleSyncUpdate(data) {
-        currentSyncData = data; // تحديث الحالة الحالية
         if (!isPoweredOn) return;
+
         if (!data || !data.url) {
-            video.style.display = 'none'; video.pause(); toggleStatic(true);
+            video.style.display = 'none'; 
+            video.pause();
+            toggleStatic(true);
             return;
         }
+
+        video.style.display = 'block'; 
+        toggleStatic(false); 
+        if (!video.src.includes(data.url)) loadVideo(data.url);
         
         if (data.isPlaying) {
-            video.style.display = 'block'; toggleStatic(false); 
-            if (!video.src.includes(data.url)) loadVideo(data.url);
             if (video.paused) video.play().catch(()=>{});
         } else {
-            video.pause();
-            video.style.display = 'none';
-            toggleStatic(true);
+            if (!video.paused) video.pause();
         }
-        
-        if (Math.abs(video.currentTime - data.currentTime) > 2) { video.currentTime = data.currentTime; }
+
+        if (Math.abs(video.currentTime - data.currentTime) > 2) {
+            video.currentTime = data.currentTime;
+        }
     }
 
-    collectionRef.on('value', (snap) => {
-        const list = document.getElementById('tapesList');
-        list.innerHTML = '';
-        const tapes = snap.val();
-        if (tapes) {
-            Object.entries(tapes).forEach(([id, tape]) => {
-                const row = document.createElement('div');
-                const isCurrent = currentSyncData && currentSyncData.url === tape.url && currentSyncData.isPlaying;
-                
-                if (isAdmin) {
-                    row.className = 'vhs-row';
-                    row.innerHTML = `
-                        <input type="text" class="vhs-input" value="${tape.url}" readonly>
-                        <button class="vhs-btn" onclick="playTape('${tape.url}')">${isCurrent ? 'STOP' : 'PLAY'}</button>
-                        <button class="vhs-btn" style="background:#444; flex:0.2;" onclick="deleteTape('${id}')">X</button>
-                    `;
-                } else {
-                    row.className = 'viewer-tape' + (isCurrent ? ' active-tape' : '');
-                    row.innerHTML = isCurrent ? `⏳ NOW PLAYING...` : `📼 VHS TAPE: ${tape.url.substring(0, 20)}...`;
-                    row.onclick = () => playTape(tape.url);
-                }
-                list.appendChild(row);
-            });
+    video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
+    video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
+
+    auth.onAuthStateChanged(user => {
+        if (user && user.email === "t@t.tt") {
+            isAdmin = true;
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'block';
+            setInterval(() => {
+                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+            }, 1000); 
         }
     });
 
-    function addNewTape() {
-        const input = document.getElementById('newTapeInput');
-        const url = input.value.trim();
-        if (url.startsWith('http')) {
-            collectionRef.push({ url: url })
-            .then(() => { input.value = ''; })
-            .catch((err) => alert("PERMISSION ERROR: " + err.message));
-        }
-    }
-
-    function playTape(url) {
-        if (!isPoweredOn) { alert("PLEASE TURN ON TV FIRST"); return; }
-        
-        // إذا كان نفس الرابط شغال حالياً، نقوم بإيقافه (Toggle)
-        if (currentSyncData && currentSyncData.url === url && currentSyncData.isPlaying) {
-            syncRef.update({ isPlaying: false, lastUpdated: Date.now() });
-        } else {
-            // تشغيل شريط جديد أو إعادة تشغيل الحالي
-            syncRef.set({ 
-                url: url, 
-                currentTime: 0, 
-                isPlaying: true, 
-                lastUpdated: Date.now() 
-            });
-        }
-    }
-
-    function deleteTape(id) {
-        if (confirm("DELETE THIS TAPE?")) collectionRef.child(id).remove();
-    }
+    document.getElementById('adminPass').addEventListener('input', (e) => {
+        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
+    });
 
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
@@ -397,31 +318,15 @@
         }
     });
 
-    auth.onAuthStateChanged(user => {
-        if (user && user.email === "t@t.tt") {
-            isAdmin = true;
-            document.getElementById('authSection').style.display = 'none';
-            document.getElementById('adminSection').style.display = 'block';
-            setInterval(() => {
-                if (!video.paused && isAdmin && isPoweredOn) {
-                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
-                }
-            }, 1000); 
-        }
-    });
-
-    document.getElementById('adminPass').addEventListener('input', (e) => {
-        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
-    });
-
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
 
     let hls;
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
-            else { video.src = url; }
+            if (Hls.isSupported()) {
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+            } else { video.src = url; }
         } else { video.src = url; }
     }
 
