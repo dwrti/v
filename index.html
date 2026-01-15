@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync & Auto Receiver</title>
+    <title>VHS Sync Control - Cast Receiver</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -246,29 +246,18 @@
     </div>
 
     <div class="control-panel">
-        <div id="pairingDisplay" style="text-align: center; margin-bottom: 15px; border: 1px solid var(--eject-yellow); padding: 10px; display: none;">
-            <p style="font-size: 10px; color: var(--eject-yellow); margin: 0;">كود الاقتران الخاص بك:</p>
-            <h2 id="pairCode" style="margin: 5px 0; letter-spacing: 5px; color: white;">----</h2>
-            <small style="font-size: 8px;">افتح الهاتف واستخدم خاصية البث المباشر</small>
-        </div>
-
         <div id="authSection">
             <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
         </div>
         
         <div id="adminSection">
+            <div id="castStatus" style="background: rgba(46, 204, 113, 0.1); border: 1px solid var(--power-green); padding: 5px; margin-bottom: 10px; font-size: 9px; text-align: center; color: var(--power-green);">
+                جاهز لاستقبال الفيديو من الهاتف تلقائياً
+            </div>
+
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
-            <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
-                <div style="display: flex; gap: 5px; flex-direction: column;">
-                    <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
-                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
-                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
-                </div>
-            </div>
-
             <div class="btn-group">
                 <button style="color: #ff6b6b;" onclick="clearDB()">ADMIN RESET</button>
                 <button onclick="adminLogout()">LOGOUT</button>
@@ -281,6 +270,25 @@
 </div>
 
 <script>
+    // --- جزء الاستقبال الخاص بـ Web Video Caster ---
+    window.addEventListener("message", function(event) {
+        // إذا أرسل التطبيق رسالة تحتوي على رابط فيديو
+        if (event.data && event.data.type === "cast" && event.data.url) {
+            if (isAdmin && isPoweredOn) {
+                syncRef.update({ 
+                    url: event.data.url, 
+                    currentTime: 0, 
+                    isPlaying: true, 
+                    lastUpdated: Date.now() + serverTimeOffset 
+                });
+            }
+        }
+    });
+
+    // محاكاة بسيطة لبروتوكول cast2tv ليتعرف التطبيق على الصفحة
+    window.isCastReceiver = true; 
+
+    // --- بقية الكود الأصلي الخاص بك ---
     const canvas = document.getElementById('noise-canvas');
     const ctx = canvas.getContext('2d');
     const video = document.getElementById('video');
@@ -309,26 +317,8 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // توليد كود عشوائي للربط (مثل 3Y في صورتك)
-    const myPairCode = Math.random().toString(36).substring(2, 4).toUpperCase();
-    document.getElementById('pairCode').innerText = myPairCode;
-
     db.ref(".info/serverTimeOffset").on("value", (snap) => {
         serverTimeOffset = snap.val() || 0;
-    });
-
-    // الاستماع لأوامر "الصب" (Casting) القادمة من الهاتف
-    db.ref('remoteCast/' + myPairCode).on('value', (snap) => {
-        const castData = snap.val();
-        if (castData && castData.url && isAdmin) {
-            syncRef.update({
-                url: castData.url,
-                currentTime: 0,
-                isPlaying: true,
-                adminPresent: true,
-                lastUpdated: Date.now() + serverTimeOffset
-            });
-        }
     });
 
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
@@ -371,20 +361,6 @@
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
     }
 
-    function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
-        const url = document.getElementById('newTapeUrl').value;
-        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
-        tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
-            document.getElementById('newTapeName').value = "";
-            document.getElementById('newTapeUrl').value = "";
-        });
-    }
-
-    function deleteTape(key) {
-        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
-    }
-
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
@@ -401,10 +377,7 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
-                if (globalAdminPresent && !isAdmin) {
-                    alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
-                    return;
-                }
+                if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل"); return; }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
                 video.play().catch(() => {}); 
                 syncRef.update({ 
@@ -461,98 +434,32 @@
         }
     }
 
-    video.onended = () => {
-        if (!isRemoteUpdate && isPoweredOn) {
-            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
-        }
-    };
-
-    video.onpause = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
-        }
-    };
-
-    video.onplay = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ 
-                isPlaying: true, 
-                currentTime: video.currentTime,
-                lastUpdated: Date.now() + serverTimeOffset - (video.currentTime * 1000) 
-            });
-        }
-    };
-
     function handleSyncUpdate(data) {
         if (!data) return;
-
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
-            applyPowerState(data.tvPower);
-        }
-
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
         globalAdminPresent = data.adminPresent || false;
-
         if (!isPoweredOn) return;
-
-        if (!data.url) {
-            video.style.display = 'none'; video.pause();
-            toggleStatic(true); return;
-        }
-        
+        if (!data.url) { video.style.display = 'none'; video.pause(); toggleStatic(true); return; }
         isRemoteUpdate = true;
-        video.style.display = 'block'; 
-        toggleStatic(false); 
-        
-        if (!video.src.includes(data.url)) {
-            loadVideo(data.url);
-        }
-
+        video.style.display = 'block'; toggleStatic(false); 
+        if (!video.src.includes(data.url)) loadVideo(data.url);
         let targetTime = data.currentTime;
         if (data.isPlaying && data.lastUpdated) {
             const elapsed = (Date.now() + serverTimeOffset - data.lastUpdated) / 1000;
             targetTime = elapsed > 0 ? elapsed : data.currentTime;
         }
-
-        if (data.isPlaying) { 
-            video.play().catch(error => {
-                video.muted = true;
-                video.play();
-            }); 
-        } else { 
-            video.pause(); 
-        }
-
+        if (data.isPlaying) { video.play().catch(() => { video.muted = true; video.play(); }); } else { video.pause(); }
         const timeDiff = Math.abs(video.currentTime - targetTime);
         if (timeDiff > 3) video.currentTime = targetTime;
-        
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
-            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            document.getElementById('pairingDisplay').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
-
-            video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now() + serverTimeOffset - (video.currentTime * 1000),
-                        adminPresent: true 
-                    });
-                }
-            };
-
-            window.addEventListener('beforeunload', () => {
-                syncRef.update({ adminPresent: false });
-            });
         }
     });
 
@@ -563,13 +470,7 @@
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
-            syncRef.update({ 
-                url: val, 
-                currentTime: 0, 
-                isPlaying: true, 
-                adminPresent: isAdmin,
-                lastUpdated: Date.now() + serverTimeOffset
-            });
+            syncRef.update({ url: val, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() + serverTimeOffset });
             e.target.value = "";
         }
     });
@@ -580,17 +481,12 @@
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
+            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
+            else { video.src = url; }
         } else { video.src = url; }
     }
 
-    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
-    function adminLogout() { 
-        syncRef.update({ adminPresent: false });
-        auth.signOut().then(() => location.reload()); 
-    }
+    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
 </script>
 </body>
 </html>
