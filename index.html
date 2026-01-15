@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync & Receiver</title>
+    <title>VHS Sync & Auto Receiver</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -132,15 +132,6 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
-        /* ستايل نظام الاستقبال الجديد */
-        .receiver-info {
-            background: rgba(0,0,0,0.3);
-            border: 1px dashed var(--eject-yellow);
-            padding: 10px;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-
         .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
         
         .vhs-shelf { 
@@ -255,16 +246,17 @@
     </div>
 
     <div class="control-panel">
+        <div id="pairingDisplay" style="text-align: center; margin-bottom: 15px; border: 1px solid var(--eject-yellow); padding: 10px; display: none;">
+            <p style="font-size: 10px; color: var(--eject-yellow); margin: 0;">كود الاقتران الخاص بك:</p>
+            <h2 id="pairCode" style="margin: 5px 0; letter-spacing: 5px; color: white;">----</h2>
+            <small style="font-size: 8px;">افتح الهاتف واستخدم خاصية البث المباشر</small>
+        </div>
+
         <div id="authSection">
             <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
         </div>
         
         <div id="adminSection">
-            <div class="receiver-info">
-                <span style="color:var(--eject-yellow); font-size:12px;">نظام الاستقبال نشط</span><br>
-                <small style="font-size:10px; opacity:0.7;">سيتم عرض أي فيديو ترسله من Web Video Caster فوراً</small>
-            </div>
-
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
@@ -317,9 +309,26 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // مزامنة الوقت
+    // توليد كود عشوائي للربط (مثل 3Y في صورتك)
+    const myPairCode = Math.random().toString(36).substring(2, 4).toUpperCase();
+    document.getElementById('pairCode').innerText = myPairCode;
+
     db.ref(".info/serverTimeOffset").on("value", (snap) => {
         serverTimeOffset = snap.val() || 0;
+    });
+
+    // الاستماع لأوامر "الصب" (Casting) القادمة من الهاتف
+    db.ref('remoteCast/' + myPairCode).on('value', (snap) => {
+        const castData = snap.val();
+        if (castData && castData.url && isAdmin) {
+            syncRef.update({
+                url: castData.url,
+                currentTime: 0,
+                isPlaying: true,
+                adminPresent: true,
+                lastUpdated: Date.now() + serverTimeOffset
+            });
+        }
     });
 
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
@@ -527,6 +536,7 @@
             userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            document.getElementById('pairingDisplay').style.display = 'block';
             
             syncRef.update({ adminPresent: true });
 
