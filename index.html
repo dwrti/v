@@ -72,7 +72,7 @@
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
-        /* تعديل إطار الـ Cast لضمان السماح بالاقتران */
+        /* إضافة تنسيق إطار البث */
         #cast-iframe {
             width: 100%;
             height: 100%;
@@ -239,13 +239,13 @@
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
-            <iframe id="cast-iframe" src="https://cast2tv.app/" allow="autoplay; fullscreen; microphone; camera; display-capture" sandbox="allow-forms allow-scripts allow-same-origin allow-presentation"></iframe>
+            <iframe id="cast-iframe" src="https://cast2tv.app/" allow="autoplay; fullscreen; microphone; camera; display-capture; presentation" sandbox="allow-forms allow-scripts allow-same-origin allow-presentation"></iframe>
         </div>
         
         <div class="tv-controls">
             <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
                 <svg class="power-icon" viewBox="0 0 24 24">
-                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99( 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
+                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
                 </svg>
             </div>
             <div class="eject-btn" id="publicEjectBtn" onclick="publicEject()">
@@ -290,7 +290,7 @@
     const canvas = document.getElementById('noise-canvas');
     const ctx = canvas.getContext('2d');
     const video = document.getElementById('video');
-    const castIframe = document.getElementById('cast-iframe');
+    const castIframe = document.getElementById('cast-iframe'); // تعريف الإطار
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
@@ -318,7 +318,7 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // تبديل وضع البث في Firebase
+    // وظيفة تبديل وضع البث
     function toggleCastMode() {
         if (!isAdmin) return;
         syncRef.once('value', (snap) => {
@@ -348,7 +348,7 @@
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
-            castIframe.style.display = 'none';
+            castIframe.style.display = 'none'; // إغلاق البث عند إطفاء التلفزيون
             video.pause();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
@@ -405,7 +405,7 @@
                     url: tape.url, 
                     currentTime: 0, 
                     isPlaying: true, 
-                    isCasting: false,
+                    isCasting: false, // إلغاء وضع البث عند اختيار شريط
                     adminPresent: isAdmin,
                     lastUpdated: Date.now() 
                 });
@@ -491,7 +491,7 @@
 
         if (!isPoweredOn) return;
 
-        // منطق المزامنة لصفحة البث
+        // إدارة وضع البث المباشر (Cast)
         if (data.isCasting) {
             video.style.display = 'none';
             video.pause();
