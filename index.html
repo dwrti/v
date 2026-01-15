@@ -2,34 +2,229 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المصارعة السريع</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VHS Sync Control - IPTV Integrated</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
     <style>
-        body { background: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
-        .btn { background: #00aeef; color: white; padding: 20px 40px; border: none; border-radius: 10px; font-size: 20px; font-weight: bold; cursor: pointer; text-decoration: none; box-shadow: 0 4px 15px rgba(0,174,239,0.4); }
-        .btn:hover { background: #008fbb; }
-        p { color: #888; margin-top: 15px; }
+        /* كود الـ CSS حقك كما هو بدون أي تغيير */
+        :root { 
+            --target-navy: #151b4e; --dark-navy: #0d1131; --pure-white: #ffffff;
+            --power-red: #ff4b2b; --power-green: #2ecc71; --eject-yellow: #f1c40f;
+        }
+        body { background-color: var(--target-navy); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: var(--pure-white); min-height: 100vh; background: linear-gradient(135deg, var(--target-navy) 0%, var(--dark-navy) 100%); overflow-x: hidden; }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
+        .tv-unit { background: var(--target-navy); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 15px 35px rgba(0,0,0,0.4); position: relative; }
+        .screen-border { background: #000; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #tap-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; }
+        #noise-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.9; display: none; }
+        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
+        .tv-controls { display: flex; justify-content: center; gap: 20px; padding: 10px 0 5px 0; }
+        .power-btn, .eject-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); background: #111; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+        .power-btn.active { border-color: var(--power-green); box-shadow: 0 0 15px var(--power-green); }
+        .power-icon { width: 15px; height: 15px; fill: var(--power-red); }
+        .power-btn.active .power-icon { fill: var(--power-green); }
+        .eject-icon { width: 18px; height: 18px; fill: #666; }
+        .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
+        .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
+        .control-panel { background: var(--target-navy); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 20px; }
+        input { width: 100%; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); color: var(--pure-white); padding: 12px; outline: none; font-family: inherit; box-sizing: border-box; direction: ltr; }
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        button { flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; }
+        .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
+        .vhs-shelf { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 15px; padding-bottom: 40px; perspective: 1000px; }
+        .vhs-tape { background: #1a1a1a; width: 130px; height: 42px; position: relative; cursor: pointer; border-radius: 3px; box-shadow: 4px 4px 10px rgba(0,0,0,0.5); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #111; }
+        .vhs-tape::before { content: ""; position: absolute; top: 5px; left: 8px; right: 8px; bottom: 5px; background: linear-gradient(to bottom, #fff 0%, #e0e0e0 100%); border-radius: 2px; z-index: 1; }
+        .vhs-tape::after { content: ""; position: absolute; left: 0; top: 0; width: 5px; height: 100%; background: var(--power-red); z-index: 2; }
+        .tape-label { position: relative; z-index: 3; color: #333; font-size: 10px; font-weight: bold; text-align: center; width: 80%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: sans-serif; }
     </style>
 </head>
-<body>
+<body> 
 
-    <h1>جاهز للمشاهدة؟</h1>
-    
-    <a href="http://webtv.iptvsmarters.com/" target="_blank" class="btn" onclick="copyData()">اضغط هنا وافتح المشغل</a>
-
-    <p id="msg">سيتم فتح الموقع الرسمي، استخدم البيانات التالية:</p>
-    
-    <div style="background: #222; padding: 15px; border-radius: 8px; margin-top: 10px; text-align: left; font-family: monospace;">
-        User: iptvloadphez <br>
-        Pass: 169b76d326 <br>
-        Host: http://cf.scma.me
+<div class="container">
+    <div class="tv-unit">
+        <div class="screen-border">
+            <div id="tap-overlay"></div>
+            <canvas id="noise-canvas"></canvas>
+            <video id="video" controls playsinline></video>
+        </div>
+        <div class="tv-controls">
+            <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
+                <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
+            </div>
+            <div class="eject-btn" onclick="publicEject()">
+                <svg class="eject-icon" viewBox="0 0 24 24"><path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/></svg>
+            </div>
+        </div>
     </div>
 
-    <script>
-        function copyData() {
-            alert("تم تجهيز البيانات. عند فتح الموقع، أدخل اليوزر والباسورد والسيرفر المكتوبين أمامك.");
-        }
-    </script>
+    <div class="control-panel">
+        <div id="authSection">
+            <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
+        </div>
+        <div id="adminSection" style="display:none;">
+            <p style="font-size: 10px; color: var(--power-green);">وضع المسؤول: متصل</p>
+            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
+            <div class="btn-group">
+                <button style="color: #ff6b6b;" onclick="clearDB()">ADMIN RESET</button>
+                <button onclick="adminLogout()">LOGOUT</button>
+            </div>
+        </div>
+    </div>
 
+    <div class="vhs-library-title">رف القنوات المسحوبة (IPTV):</div>
+    <div class="vhs-shelf" id="vhsShelf"></div>
+</div>
+
+<script>
+    /* --- إعدادات Firebase والبيانات الأساسية --- */
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const auth = firebase.auth();
+    const syncRef = db.ref('videoSync');
+
+    /* --- بيانات الـ IPTV من صورك --- */
+    const iptvUser = "iptvloadphez";
+    const iptvPass = "169b76d326";
+    const iptvHost = "http://cf.scma.me";
+    const proxy = "https://api.allorigins.win/raw?url=";
+
+    /* --- وظيفة سحب القنوات وتحويلها لأشرطة --- */
+    async function fetchIptvToShelf() {
+        const apiUrl = `${iptvHost}/player_api.php?username=${iptvUser}&password=${iptvPass}&action=get_live_streams`;
+        try {
+            const response = await fetch(proxy + encodeURIComponent(apiUrl));
+            const data = await response.json();
+            const shelf = document.getElementById('vhsShelf');
+            
+            // سحب أول 20 قناة (أو فلترة Bein)
+            data.slice(0, 30).forEach(ch => {
+                const streamUrl = `${iptvHost}/live/${iptvUser}/${iptvPass}/${ch.stream_id}.m3u8`;
+                const tape = document.createElement('div');
+                tape.className = 'vhs-tape';
+                tape.innerHTML = `<div class="tape-label">${ch.name}</div>`;
+                
+                tape.onclick = () => {
+                    if (!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                    if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل، هو من يختار الشريط"); return; }
+                    
+                    // تحديث Firebase لمزامنة الرابط مع الجميع
+                    syncRef.update({ 
+                        url: streamUrl, 
+                        currentTime: 0, 
+                        isPlaying: true, 
+                        adminPresent: isAdmin,
+                        lastUpdated: Date.now() 
+                    });
+                };
+                shelf.appendChild(tape);
+            });
+        } catch (e) { console.error("خطأ في سحب القنوات"); }
+    }
+
+    /* --- بقية كود المزامنة والـ VHS الخاص بك (بدون تغيير) --- */
+    const canvas = document.getElementById('noise-canvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('tap-overlay');
+    const powerBtn = document.getElementById('powerBtn');
+    let noiseID, audioCtx, noiseNode, isAdmin = false, isPoweredOn = false, isRemoteUpdate = false, globalAdminPresent = false, userHasInteracted = false;
+
+    // تشغيل السحب عند البداية
+    fetchIptvToShelf();
+
+    function handlePowerClick() {
+        userHasInteracted = true;
+        if (globalAdminPresent && !isAdmin) { alert("الأدمن يتحكم بالطاقة حالياً"); return; }
+        syncRef.update({ tvPower: !isPoweredOn });
+    }
+
+    function applyPowerState(state) {
+        isPoweredOn = state;
+        if (isPoweredOn) {
+            powerBtn.classList.add('active'); overlay.style.display = 'none';
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
+        } else {
+            powerBtn.classList.remove('active'); overlay.style.display = 'block';
+            video.style.display = 'none'; video.pause(); toggleStatic(false);
+        }
+    }
+
+    function toggleStatic(show) {
+        if (show && isPoweredOn) {
+            canvas.style.display = 'block';
+            if (!noiseID) (function loop() {
+                canvas.width = 200; canvas.height = 150;
+                const idata = ctx.createImageData(200, 150);
+                const b32 = new Uint32Array(idata.data.buffer);
+                for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
+                ctx.putImageData(idata, 0, 0);
+                noiseID = requestAnimationFrame(loop);
+            })();
+        } else {
+            canvas.style.display = 'none'; cancelAnimationFrame(noiseID); noiseID = null;
+        }
+    }
+
+    function handleSyncUpdate(data) {
+        if (!data) return;
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
+        globalAdminPresent = data.adminPresent || false;
+        if (!isPoweredOn) return;
+        if (!data.url) { video.style.display = 'none'; video.pause(); toggleStatic(true); return; }
+        
+        isRemoteUpdate = true;
+        video.style.display = 'block'; toggleStatic(false);
+        if (!video.src.includes(data.url)) loadVideo(data.url);
+
+        let targetTime = data.currentTime;
+        if (data.isPlaying && data.lastUpdated) {
+            targetTime = ((Date.now() - data.lastUpdated) / 1000);
+        }
+
+        if (data.isPlaying) video.play().catch(() => { video.muted = true; video.play(); });
+        else video.pause();
+
+        if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+        setTimeout(() => { isRemoteUpdate = false; }, 200);
+    }
+
+    let hls;
+    function loadVideo(url) {
+        if (hls) hls.destroy();
+        if (url.includes('.m3u8')) {
+            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
+            else video.src = url;
+        } else video.src = url;
+    }
+
+    // إدارة تسجيل الدخول (Admin)
+    document.getElementById('adminPass').addEventListener('input', (e) => {
+        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).then(() => {
+            isAdmin = true; document.getElementById('authSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'block';
+            syncRef.update({ adminPresent: true });
+        });
+    });
+
+    syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
+    function publicEject() { syncRef.update({ url: null, isPlaying: false }); }
+    function clearDB() { syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
+    function adminLogout() { auth.signOut().then(() => location.reload()); }
+</script>
 </body>
 </html>
