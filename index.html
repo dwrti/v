@@ -2,46 +2,68 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>مشغل القنوات الخاص بي</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTV Player</title>
     <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
     <style>
-        body { background: #0f0f0f; color: #fff; font-family: sans-serif; text-align: center; }
-        .player-box { width: 90%; max-width: 800px; margin: 20px auto; border: 1px solid #444; }
-        .info { color: #888; font-size: 0.9em; }
+        body { background: #121212; color: white; font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
+        #sidebar { width: 300px; background: #1e1e1e; overflow-y: auto; border-left: 1px solid #333; }
+        #main { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .channel-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #333; transition: 0.3s; }
+        .channel-item:hover { background: #333; }
+        .video-js { width: 90% !important; height: 70% !important; }
+        h3 { padding: 10px; background: #000; margin: 0; text-align: center; position: sticky; top: 0; }
     </style>
 </head>
 <body>
 
-    <h2>مشغل البث المباشر المخصص</h2>
-    <div class="player-box">
-        <video id="video_player" class="video-js vjs-default-skin vjs-big-play-centered" 
-               controls preload="auto" width="800" height="450">
-        </video>
-    </div>
+<div id="sidebar">
+    <h3>قائمة القنوات</h3>
+    <div id="channel-list">جاري تحميل القنوات...</div>
+</div>
 
-    <div class="info">
-        <p>جاري التشغيل من سيرفر: cf.scma.me</p>
-    </div>
+<div id="main">
+    <video id="my_video" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto"></video>
+</div>
 
-    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
-    <script>
-        // بياناتك من الصورة
-        const user = "iptvloadphez";
-        const pass = "169b76d326";
-        const host = "http://cf.scma.me";
-        
-        // لنفترض أنك تريد تشغيل قناة رقم 100 كمثال
-        const streamId = "100"; 
+<script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+<script>
+    const user = "iptvloadphez";
+    const pass = "169b76d326";
+    const host = "http://cf.scma.me";
 
-        // بناء الرابط بصيغة M3U8 المتوافقة مع سفاري
+    var player = videojs('my_video');
+
+    // وظيفة لجلب القنوات
+    async function loadChannels() {
+        try {
+            const response = await fetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_live_streams`);
+            const channels = await response.json();
+            
+            const listContainer = document.getElementById('channel-list');
+            listContainer.innerHTML = ''; // مسح رسالة التحميل
+
+            channels.forEach(ch => {
+                let div = document.createElement('div');
+                div.className = 'channel-item';
+                div.innerText = ch.name;
+                div.onclick = () => playChannel(ch.stream_id);
+                listContainer.appendChild(div);
+            });
+        } catch (error) {
+            document.getElementById('channel-list').innerHTML = "فشل التحميل. تأكد من إعدادات الأمان (Mixed Content)";
+            console.error(error);
+        }
+    }
+
+    // وظيفة التشغيل
+    function playChannel(streamId) {
         const streamUrl = `${host}/live/${user}/${pass}/${streamId}.m3u8`;
+        player.src({ src: streamUrl, type: 'application/x-mpegURL' });
+        player.play();
+    }
 
-        // تفعيل المشغل
-        var player = videojs('video_player');
-        player.src({
-            src: streamUrl,
-            type: 'application/x-mpegURL'
-        });
-    </script>
+    loadChannels();
+</script>
 </body>
 </html>
