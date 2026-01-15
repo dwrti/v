@@ -3,23 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPTV Player</title>
+    <title>مشغل القنوات المباشر</title>
     <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
     <style>
-        body { background: #121212; color: white; font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
-        #sidebar { width: 300px; background: #1e1e1e; overflow-y: auto; border-left: 1px solid #333; }
-        #main { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .channel-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #333; transition: 0.3s; }
-        .channel-item:hover { background: #333; }
-        .video-js { width: 90% !important; height: 70% !important; }
-        h3 { padding: 10px; background: #000; margin: 0; text-align: center; position: sticky; top: 0; }
+        body { background: #0a0a0a; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 350px; background: #151515; display: flex; flex-direction: column; border-left: 1px solid #333; }
+        #search-box { padding: 15px; background: #222; border: none; color: white; width: 100%; box-sizing: border-box; outline: none; }
+        #channel-list { flex-grow: 1; overflow-y: auto; }
+        .channel-item { padding: 15px; cursor: pointer; border-bottom: 1px solid #222; font-size: 14px; transition: 0.2s; display: flex; align-items: center; }
+        .channel-item:hover { background: #2a2a2a; }
+        .channel-item img { width: 30px; margin-left: 10px; border-radius: 4px; }
+        #main { flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #000; }
+        .video-js { width: 100% !important; height: 100% !important; }
+        .error-msg { color: #ff4444; padding: 20px; text-align: center; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h3>قائمة القنوات</h3>
-    <div id="channel-list">جاري تحميل القنوات...</div>
+    <input type="text" id="search-box" placeholder="ابحث عن قناة..." oninput="filterChannels()">
+    <div id="channel-list">جاري جلب القنوات...</div>
 </div>
 
 <div id="main">
@@ -31,33 +34,44 @@
     const user = "iptvloadphez";
     const pass = "169b76d326";
     const host = "http://cf.scma.me";
+    // استخدام وسيط لتجاوز حماية المتصفح (CORS Proxy)
+    const proxy = "https://api.allorigins.win/raw?url=";
 
     var player = videojs('my_video');
+    let allChannels = [];
 
-    // وظيفة لجلب القنوات
     async function loadChannels() {
+        const apiUrl = `${host}/player_api.php?username=${user}&password=${pass}&action=get_live_streams`;
         try {
-            const response = await fetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_live_streams`);
-            const channels = await response.json();
-            
-            const listContainer = document.getElementById('channel-list');
-            listContainer.innerHTML = ''; // مسح رسالة التحميل
-
-            channels.forEach(ch => {
-                let div = document.createElement('div');
-                div.className = 'channel-item';
-                div.innerText = ch.name;
-                div.onclick = () => playChannel(ch.stream_id);
-                listContainer.appendChild(div);
-            });
+            // سحب البيانات عبر البروكسي
+            const response = await fetch(proxy + encodeURIComponent(apiUrl));
+            allChannels = await response.json();
+            displayChannels(allChannels);
         } catch (error) {
-            document.getElementById('channel-list').innerHTML = "فشل التحميل. تأكد من إعدادات الأمان (Mixed Content)";
-            console.error(error);
+            document.getElementById('channel-list').innerHTML = `<div class="error-msg">فشل في الاتصال بالسيرفر. جرب تحديث الصفحة.</div>`;
         }
     }
 
-    // وظيفة التشغيل
+    function displayChannels(channels) {
+        const listContainer = document.getElementById('channel-list');
+        listContainer.innerHTML = '';
+        channels.forEach(ch => {
+            let div = document.createElement('div');
+            div.className = 'channel-item';
+            div.innerHTML = `<img src="${ch.stream_icon || 'https://via.placeholder.com/30'}" onerror="this.src='https://via.placeholder.com/30'"> ${ch.name}`;
+            div.onclick = () => playChannel(ch.stream_id);
+            listContainer.appendChild(div);
+        });
+    }
+
+    function filterChannels() {
+        const term = document.getElementById('search-box').value.toLowerCase();
+        const filtered = allChannels.filter(ch => ch.name.toLowerCase().includes(term));
+        displayChannels(filtered);
+    }
+
     function playChannel(streamId) {
+        // روابط البث المباشرة تعمل غالباً بدون بروكسي في سفاري، إذا ما اشتغل حط البروكسي قبل الرابط
         const streamUrl = `${host}/live/${user}/${pass}/${streamId}.m3u8`;
         player.src({ src: streamUrl, type: 'application/x-mpegURL' });
         player.play();
