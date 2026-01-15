@@ -18,7 +18,6 @@
             --power-red: #ff4b2b;
             --power-green: #2ecc71;
             --eject-yellow: #f1c40f;
-            --iptv-blue: #3498db;
         }
         
         body { 
@@ -256,17 +255,11 @@
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa; margin-top: 10px;">إضافة شريط جديد للرف:</p>
+                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
                     <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
                     <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
                     <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
-                    
-                    <hr style="opacity: 0.1; margin: 5px 0;">
-                    <p style="font-size: 10px; color: var(--iptv-blue);">استيراد من ملف (M3U):</p>
-                    <input type="file" id="iptvFileInput" accept=".m3u,.txt" style="display:none;" onchange="handleIptvFile(this)">
-                    <button onclick="document.getElementById('iptvFileInput').click()" id="uploadBtn" style="padding: 8px; font-size: 10px; background: var(--iptv-blue); color: white;">اختيار ملف M3U من جهازك</button>
-                    <p id="uploadStatus" style="font-size: 9px; text-align: center; margin-top: 3px; color: #888;"></p>
                 </div>
             </div>
 
@@ -309,52 +302,6 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // --- وظيفة معالجة ملفات الـ IPTV الجديدة ---
-    async function handleIptvFile(input) {
-        const file = input.files[0];
-        if (!file) return;
-        
-        const status = document.getElementById('uploadStatus');
-        const btn = document.getElementById('uploadBtn');
-        btn.disabled = true;
-        status.innerText = "جاري قراءة الملف...";
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const lines = e.target.result.split('\n');
-            let count = 0;
-            status.innerText = "بدء الرفع... يرجى الانتظار";
-
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].includes('#EXTINF:')) {
-                    const name = lines[i].split(',').pop().trim() || "قناة";
-                    let url = "";
-                    // البحث عن أول رابط بعد سطر المعلومات
-                    for (let j = i + 1; j < i + 5 && j < lines.length; j++) {
-                        if (lines[j].trim().startsWith('http')) {
-                            url = lines[j].trim();
-                            break;
-                        }
-                    }
-                    if (url) {
-                        await tapesRef.push({ name, url, timestamp: Date.now() });
-                        count++;
-                    }
-                    // منع التعليق: استراحة كل 5 قنوات
-                    if (count % 5 === 0) {
-                        status.innerText = `تم رفع ${count} قناة...`;
-                        await new Promise(r => setTimeout(r, 50));
-                    }
-                }
-            }
-            alert(`تم استيراد ${count} شريط بنجاح!`);
-            status.innerText = "";
-            btn.disabled = false;
-            input.value = "";
-        };
-        reader.readAsText(file);
-    }
-
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
@@ -387,6 +334,7 @@
 
     function publicEject() {
         userHasInteracted = true;
+        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
@@ -425,6 +373,7 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
+                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
@@ -493,6 +442,7 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -500,6 +450,7 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
