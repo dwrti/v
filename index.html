@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync Control - M3U Support</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -254,12 +254,20 @@
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
-            <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
+            <div class="admin-tape-controls" style="margin-top: 10px;">
+                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
-                    <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
+                    <input type="text" id="newTapeName" placeholder="اسم الشريط" style="font-size: 11px; padding: 8px;">
                     <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
-                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
+                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط</button>
+                </div>
+            </div>
+
+            <div class="admin-tape-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 10px;">
+                <p style="font-size: 10px; color: var(--eject-yellow);">استيراد قائمة M3U:</p>
+                <div style="display: flex; gap: 5px; flex-direction: column;">
+                    <input type="text" id="m3uUrl" placeholder="رابط ملف .m3u" style="font-size: 11px; padding: 8px;">
+                    <button onclick="importM3U()" style="padding: 8px; font-size: 10px; background: var(--eject-yellow); color: black; font-weight: bold;">⚡ استيراد الكل</button>
                 </div>
             </div>
 
@@ -352,6 +360,41 @@
         });
     }
 
+    // الدالة الجديدة لاستيراد ملفات M3U
+    async function importM3U() {
+        const url = document.getElementById('m3uUrl').value.trim();
+        if (!url) { alert("يرجى وضع رابط ملف m3u أولاً"); return; }
+
+        try {
+            const response = await fetch(url);
+            const data = await response.text();
+            const lines = data.split('\n');
+            let count = 0;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const nameMatch = line.match(/,(.*)$/);
+                    const name = nameMatch ? nameMatch[1].trim() : "بث غير مسمى";
+                    const videoUrl = lines[i + 1] ? lines[i + 1].trim() : null;
+
+                    if (videoUrl && videoUrl.startsWith('http')) {
+                        tapesRef.push({
+                            name: "🎬 " + name,
+                            url: videoUrl,
+                            timestamp: Date.now()
+                        });
+                        count++;
+                    }
+                }
+            }
+            alert(`تم بنجاح إضافة ${count} شريط إلى المكتبة!`);
+            document.getElementById('m3uUrl').value = "";
+        } catch (error) {
+            alert("خطأ: تأكد من رابط الملف أو صلاحيات الوصول (CORS).");
+        }
+    }
+
     function deleteTape(key) {
         if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
     }
@@ -362,7 +405,7 @@
         const data = snap.val();
         if(!data) return;
 
-        Object.keys(data).forEach(key => {
+        Object.keys(data).sort((a,b) => data[b].timestamp - data[a].timestamp).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
@@ -458,71 +501,42 @@
 
     function handleSyncUpdate(data) {
         if (!data) return;
-
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
-            applyPowerState(data.tvPower);
-        }
-
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
         globalAdminPresent = data.adminPresent || false;
-
         if (!isPoweredOn) return;
-
         if (!data.url) {
             video.style.display = 'none'; video.pause();
             toggleStatic(true); return;
         }
-        
         isRemoteUpdate = true;
         video.style.display = 'block'; 
         toggleStatic(false); 
-        
-        if (!video.src.includes(data.url)) {
-            loadVideo(data.url);
-        }
-
+        if (!video.src.includes(data.url)) loadVideo(data.url);
         let targetTime = data.currentTime;
         if (data.isPlaying && data.lastUpdated) {
             const elapsed = (Date.now() - data.lastUpdated) / 1000;
             targetTime = elapsed > 0 ? elapsed : data.currentTime;
         }
-
         if (data.isPlaying) { 
-            video.play().catch(error => {
-                video.muted = true;
-                video.play();
-            }); 
-        } else { 
-            video.pause(); 
-        }
-
+            video.play().catch(() => { video.muted = true; video.play(); }); 
+        } else { video.pause(); }
         const timeDiff = Math.abs(video.currentTime - targetTime);
         if (timeDiff > 2) video.currentTime = targetTime;
-        
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
-            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
-
             video.ontimeupdate = () => {
                 if (!video.paused && !isRemoteUpdate && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now() - (video.currentTime * 1000),
-                        adminPresent: true 
-                    });
+                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() - (video.currentTime * 1000), adminPresent: true });
                 }
             };
-
-            window.addEventListener('beforeunload', () => {
-                syncRef.update({ adminPresent: false });
-            });
+            window.addEventListener('beforeunload', () => { syncRef.update({ adminPresent: false }); });
         }
     });
 
@@ -533,13 +547,7 @@
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
-            syncRef.update({ 
-                url: val, 
-                currentTime: 0, 
-                isPlaying: true, 
-                adminPresent: isAdmin,
-                lastUpdated: Date.now() 
-            });
+            syncRef.update({ url: val, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
             e.target.value = "";
         }
     });
@@ -561,30 +569,6 @@
         syncRef.update({ adminPresent: false });
         auth.signOut().then(() => location.reload()); 
     }
-
-    /* --- كود سحب القنوات الذكي (إضافة فقط) --- */
-    (function fetchLiveChannels() {
-        const u="iptvloadphez", p="169b76d326", h="http://cf.scma.me";
-        const proxy = "https://api.allorigins.win/raw?url=";
-        fetch(proxy + encodeURIComponent(`${h}/player_api.php?username=${u}&password=${p}&action=get_live_streams`))
-        .then(r => r.json())
-        .then(data => {
-            const shelf = document.getElementById('vhsShelf');
-            // بنسحب أهم القنوات اللي في صورتك
-            data.slice(0, 40).forEach(item => {
-                const el = document.createElement('div');
-                el.className = 'vhs-tape';
-                el.innerHTML = `<div class="tape-label">${item.name}</div>`;
-                el.onclick = () => {
-                    if (!isPoweredOn) return alert("شغل التلفزيون!");
-                    if (globalAdminPresent && !isAdmin) return alert("الأدمن يتحكم!");
-                    const stream = `${h}/live/${u}/${p}/${item.stream_id}.m3u8`;
-                    syncRef.update({ url: stream, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
-                };
-                shelf.appendChild(el);
-            });
-        }).catch(err => console.log("خطأ في جلب القنوات"));
-    })();
 </script>
 </body>
 </html>
