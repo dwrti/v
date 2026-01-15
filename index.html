@@ -60,6 +60,11 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-size: 12px;
         }
 
         #noise-canvas {
@@ -70,7 +75,7 @@
             display: none;
         }
 
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
+        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; background: #000; }
 
         .tv-controls {
             display: flex;
@@ -226,9 +231,9 @@
 <div class="container">
     <div class="tv-unit">
         <div class="screen-border">
-            <div id="tap-overlay"></div>
+            <div id="tap-overlay">CLICK TO SYNC</div>
             <canvas id="noise-canvas"></canvas>
-            <video id="video" controls playsinline></video>
+            <video id="video" controls playsinline crossorigin="anonymous"></video>
         </div>
         
         <div class="tv-controls">
@@ -251,7 +256,7 @@
         </div>
         
         <div id="adminSection">
-            <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
+            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
@@ -302,11 +307,17 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
-    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
+    // تفعيل التفاعل فور لمس أي مكان
+    const activateUser = () => {
+        userHasInteracted = true;
+        initAudio();
+        overlay.innerText = "";
+        overlay.style.pointerEvents = "none";
+        document.removeEventListener('click', activateUser);
+    };
+    document.addEventListener('click', activateUser);
 
     function handlePowerClick() {
-        userHasInteracted = true;
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، هو فقط من يتحكم بالطاقة حالياً");
             return;
@@ -320,41 +331,27 @@
         if (isPoweredOn) {
             powerBtn.classList.add('active');
             overlay.style.display = 'none';
-            initAudio();
             syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
         } else {
             powerBtn.classList.remove('active');
-            overlay.style.display = 'block';
+            overlay.style.display = 'flex';
             video.style.display = 'none';
             video.pause();
             toggleStatic(false);
-            if (audioCtx) audioCtx.suspend();
         }
     }
 
     function publicEject() {
-        userHasInteracted = true;
-        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
-        if (globalAdminPresent && !isAdmin) {
-            alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
-            return;
-        }
+        if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل!"); return; }
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
+        syncRef.set({ tvPower: true, isPlaying: false, url: null });
     }
 
     function addNewTape() {
         const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
         const url = document.getElementById('newTapeUrl').value;
-        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
-        tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
-            document.getElementById('newTapeName').value = "";
-            document.getElementById('newTapeUrl').value = "";
-        });
-    }
-
-    function deleteTape(key) {
-        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
+        if(!url) return;
+        tapesRef.push({ name: name, url: url, timestamp: Date.now() });
     }
 
     tapesRef.on('value', (snap) => {
@@ -362,24 +359,14 @@
         shelf.innerHTML = "";
         const data = snap.val();
         if(!data) return;
-
         Object.keys(data).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `
-                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
-                <div class="tape-label">${tape.name}</div>
-            `;
+            el.innerHTML = `<div class="tape-label">${tape.name}</div>`;
             el.onclick = () => {
-                userHasInteracted = true;
-                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
-                if (globalAdminPresent && !isAdmin) {
-                    alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
-                    return;
-                }
-                if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                video.play().catch(() => {}); 
+                if (globalAdminPresent && !isAdmin) return;
+                if(!isPoweredOn) { alert("شغل التلفزيون!"); return; }
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -434,15 +421,8 @@
         }
     }
 
-    video.onended = () => {
-        if (!isRemoteUpdate && isPoweredOn) {
-            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
-        }
-    };
-
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -450,25 +430,15 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ 
-                isPlaying: true, 
-                currentTime: video.currentTime,
-                lastUpdated: Date.now() - (video.currentTime * 1000) 
-            });
+            syncRef.update({ isPlaying: true, currentTime: video.currentTime, lastUpdated: Date.now() - (video.currentTime * 1000) });
         }
     };
 
     function handleSyncUpdate(data) {
         if (!data) return;
-
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
-            applyPowerState(data.tvPower);
-        }
-
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
         globalAdminPresent = data.adminPresent || false;
-
         if (!isPoweredOn) return;
 
         if (!data.url) {
@@ -481,52 +451,31 @@
         toggleStatic(false); 
         
         if (!video.src.includes(data.url)) {
-            loadVideo(data.url);
+            video.src = data.url;
+            video.load(); // إجبار المتصفح على تحميل الرابط الجديد
         }
 
         let targetTime = data.currentTime;
         if (data.isPlaying && data.lastUpdated) {
-            const elapsed = (Date.now() - data.lastUpdated) / 1000;
-            targetTime = elapsed > 0 ? elapsed : data.currentTime;
+            targetTime = (Date.now() - data.lastUpdated) / 1000;
         }
 
         if (data.isPlaying) { 
-            video.play().catch(error => {
-                video.muted = true;
-                video.play();
-            }); 
+            video.play().catch(() => { video.muted = true; video.play(); }); 
         } else { 
             video.pause(); 
         }
 
-        const timeDiff = Math.abs(video.currentTime - targetTime);
-        if (timeDiff > 2) video.currentTime = targetTime;
-        
-        setTimeout(() => { isRemoteUpdate = false; }, 200);
+        if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+        setTimeout(() => { isRemoteUpdate = false; }, 300);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
-            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
-
-            video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now() - (video.currentTime * 1000),
-                        adminPresent: true 
-                    });
-                }
-            };
-
-            window.addEventListener('beforeunload', () => {
-                syncRef.update({ adminPresent: false });
-            });
         }
     });
 
@@ -534,37 +483,7 @@
         if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
     });
 
-    document.getElementById('videoUrl').addEventListener('change', (e) => {
-        const val = e.target.value.trim();
-        if (val.startsWith('http')) {
-            syncRef.update({ 
-                url: val, 
-                currentTime: 0, 
-                isPlaying: true, 
-                adminPresent: isAdmin,
-                lastUpdated: Date.now() 
-            });
-            e.target.value = "";
-        }
-    });
-
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-
-    let hls;
-    function loadVideo(url) {
-        if (hls) hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
-        } else { video.src = url; }
-    }
-
-    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
-    function adminLogout() { 
-        syncRef.update({ adminPresent: false });
-        auth.signOut().then(() => location.reload()); 
-    }
 </script>
 </body>
 </html>
