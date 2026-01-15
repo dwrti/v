@@ -2,76 +2,44 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My IPTV Player</title>
+    <title>مشغل القنوات</title>
     <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; margin: 0; display: flex; height: 100vh; }
-        #sidebar { width: 300px; background: #111; display: flex; flex-direction: column; border-left: 1px solid #333; }
-        #search { padding: 15px; background: #222; border: none; color: #fff; outline: none; }
-        #list { flex-grow: 1; overflow-y: auto; }
-        .item { padding: 12px; border-bottom: 1px solid #222; cursor: pointer; font-size: 14px; }
-        .item:hover { background: #333; }
-        #main { flex-grow: 1; position: relative; background: #000; }
+        body { background: #000; color: #fff; margin: 0; display: flex; height: 100vh; font-family: sans-serif; }
+        #sidebar { width: 250px; background: #111; overflow-y: auto; border-left: 1px solid #333; }
+        .ch { padding: 12px; border-bottom: 1px solid #222; cursor: pointer; font-size: 13px; }
+        .ch:hover { background: #00aeef; color: #000; }
+        #main { flex-grow: 1; background: #000; }
         .video-js { width: 100% !important; height: 100% !important; }
-        .loading { padding: 20px; text-align: center; color: yellow; }
     </style>
 </head>
 <body>
+    <div id="sidebar"><div id="list" style="padding:10px;">جاري التحميل...</div></div>
+    <div id="main"><video id="vid" class="video-js vjs-default-skin" controls preload="auto"></video></div>
 
-<div id="sidebar">
-    <input type="text" id="search" placeholder="بحث عن قناة..." oninput="filter()">
-    <div id="list"><div class="loading">جاري سحب القنوات...</div></div>
-</div>
+    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+    <script>
+        const u="iptvloadphez", p="169b76d326", h="http://cf.scma.me";
+        const proxy = "https://api.allorigins.win/raw?url="; // هذا اللي بيشغلها لك
 
-<div id="main">
-    <video id="player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto"></video>
-</div>
-
-<script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
-<script>
-    const user = "iptvloadphez";
-    const pass = "169b76d326";
-    const host = "http://cf.scma.me";
-    // استخدام بروكسي "Corsproxy.io" وهو أسرع وأثبت
-    const proxy = "https://corsproxy.io/?";
-
-    let player = videojs('player');
-    let channels = [];
-
-    async function getChannels() {
-        const url = `${host}/player_api.php?username=${user}&password=${pass}&action=get_live_streams`;
-        try {
-            const res = await fetch(proxy + encodeURIComponent(url));
-            channels = await res.json();
-            render(channels);
-        } catch (e) {
-            document.getElementById('list').innerHTML = '<div style="color:red; padding:10px;">فشل الاتصال! جرب تحديث الصفحة أو تأكد من اشتراكك.</div>';
+        async function start() {
+            try {
+                const res = await fetch(proxy + encodeURIComponent(`${h}/player_api.php?username=${u}&password=${p}&action=get_live_streams`));
+                const data = await res.json();
+                document.getElementById('list').innerHTML = data.map(ch => `
+                    <div class="ch" onclick="play('${ch.stream_id}')">${ch.name}</div>
+                `).join('');
+            } catch (e) { document.getElementById('list').innerText = "فشل! حدث الصفحة"; }
         }
-    }
 
-    function render(data) {
-        const container = document.getElementById('list');
-        container.innerHTML = data.map(ch => `
-            <div class="item" onclick="play('${ch.stream_id}')">
-                ${ch.name}
-            </div>
-        `).join('');
-    }
-
-    function filter() {
-        const txt = document.getElementById('search').value.toLowerCase();
-        render(channels.filter(c => c.name.toLowerCase().includes(txt)));
-    }
-
-    function play(id) {
-        // روابط البث المباشر (HLS)
-        const stream = `${host}/live/${user}/${pass}/${id}.m3u8`;
-        player.src({ src: proxy + encodeURIComponent(stream), type: 'application/x-mpegURL' });
-        player.play();
-    }
-
-    getChannels();
-</script>
+        function play(id) {
+            const player = videojs('vid');
+            // نمرر رابط البث عبر البروكسي عشان يشتغل في المتصفح غصب
+            const streamUrl = proxy + encodeURIComponent(`${h}/live/${u}/${p}/${id}.m3u8`);
+            player.src({ src: streamUrl, type: 'application/x-mpegURL' });
+            player.play();
+        }
+        start();
+    </script>
 </body>
 </html>
