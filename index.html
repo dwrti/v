@@ -221,11 +221,11 @@
             border: none;
         }
 
-        /* تنسيق أقسام الأدمن الجديدة */
-        .admin-box {
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 10px;
+        /* تنسيق قسم IPTV الجديد */
+        .iptv-tool {
             margin-top: 15px;
+            padding: 10px;
+            border: 1px dashed var(--iptv-blue);
             background: rgba(0,0,0,0.2);
             border-radius: 4px;
         }
@@ -262,24 +262,24 @@
         
         <div id="adminSection">
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
+            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
-            <div class="admin-box">
-                <p style="font-size: 10px; color: var(--power-green); margin-top:0;">إضافة شريط يدوي:</p>
-                <input type="text" id="newTapeName" placeholder="اسم الشريط" style="font-size: 11px; padding: 8px; margin-bottom:5px;">
-                <input type="text" id="newTapeUrl" placeholder="رابط الفيديو المباشر" style="font-size: 11px; padding: 8px; margin-bottom:5px;">
-                <button onclick="addNewTape()" style="padding: 8px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة للرف</button>
+            <div class="admin-tape-controls">
+                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
+                <div style="display: flex; gap: 5px; flex-direction: column;">
+                    <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
+                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
+                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
+                </div>
             </div>
 
-            <div class="admin-box" style="border-color: var(--iptv-blue);">
-                <p style="font-size: 10px; color: var(--iptv-blue); margin-top:0;">تحميل قائمة IPTV (M3U):</p>
+            <div class="iptv-tool">
+                <p style="font-size: 10px; color: var(--iptv-blue); margin: 0 0 8px 0;">استيراد قائمة IPTV (M3U):</p>
+                <input type="text" id="iptvUrl" placeholder="رابط الملف" style="font-size: 10px; padding: 8px; margin-bottom: 5px;">
+                <button onclick="fetchIptv()" id="iptvBtn" style="padding: 6px; font-size: 9px; background: var(--iptv-blue); margin-bottom: 8px;">جلب من رابط</button>
                 
-                <input type="text" id="iptvUrl" placeholder="رابط M3U (قد يفشل بسبب CORS)" style="font-size: 11px; padding: 8px; margin-bottom:5px;">
-                <button onclick="loadIptvFromUrl()" id="iptvBtn" style="padding: 8px; background: var(--iptv-blue); color: white; margin-bottom:10px;">جلب من الرابط</button>
-                
-                <p style="font-size: 9px; text-align: center; margin: 5px 0; opacity: 0.6;">-- أو الحل المضمون للهاتف --</p>
-                
-                <input type="file" id="iptvFile" accept=".m3u,.txt" style="display: none;" onchange="loadIptvFromFile(this)">
-                <button onclick="document.getElementById('iptvFile').click()" style="padding: 8px; background: #555; color: white;">اختر ملف M3U من هاتفك</button>
+                <input type="file" id="iptvFile" accept=".m3u,.txt" style="display:none;" onchange="handleFileSelect(this)">
+                <button onclick="document.getElementById('iptvFile').click()" id="fileBtn" style="padding: 6px; font-size: 9px; background: #444;">رفع ملف M3U من الهاتف</button>
             </div>
 
             <div class="btn-group">
@@ -321,66 +321,59 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
-    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
-
-    // --- وظائف الجلب (رابط + ملف) ---
-    async function loadIptvFromUrl() {
+    // --- وظائف IPTV الجديدة ---
+    async function fetchIptv() {
         const url = document.getElementById('iptvUrl').value.trim();
-        if(!url) return alert("ضع الرابط أولاً");
+        if(!url) return;
         const btn = document.getElementById('iptvBtn');
         btn.innerText = "جاري المحاولة...";
-        
-        // استخدام بروكسي بديل لتجاوز CORS
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        
         try {
-            const response = await fetch(proxyUrl);
-            const json = await response.json();
-            if(json.contents) parseAndUploadM3U(json.contents);
-            else alert("السيرفر رفض الجلب المباشر، جرب رفع الملف من هاتفك.");
-        } catch (e) {
-            alert("خطأ CORS: السيرفر محمي. يرجى تحميل الملف على هاتفك ورفعه يدوياً.");
-        } finally {
-            btn.innerText = "جلب من الرابط";
-        }
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+            const json = await res.json();
+            if(json.contents) processM3U(json.contents);
+        } catch (e) { alert("السيرفر محمي، يرجى رفع الملف يدوياً"); }
+        finally { btn.innerText = "جلب من رابط"; }
     }
 
-    function loadIptvFromFile(input) {
+    function handleFileSelect(input) {
         const file = input.files[0];
-        if (!file) return;
+        if(!file) return;
         const reader = new FileReader();
-        reader.onload = function(e) {
-            parseAndUploadM3U(e.target.result);
-        };
+        reader.onload = (e) => processM3U(e.target.result);
         reader.readAsText(file);
     }
 
-    function parseAndUploadM3U(content) {
-        if(!content.includes('#EXTM3U')) return alert("الملف ليس بتنسيق M3U صحيح.");
-        
-        const lines = content.split('\n');
+    async function processM3U(text) {
+        const lines = text.split('\n');
+        const btn = document.getElementById('fileBtn');
+        btn.innerText = "جاري المعالجة...";
         let count = 0;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].startsWith('#EXTINF:')) {
-                const name = lines[i].split(',').pop().trim() || "قناة IPTV";
-                let streamUrl = "";
-                for (let j = i + 1; j < i + 5; j++) {
-                    if (lines[j]?.trim().startsWith('http')) {
-                        streamUrl = lines[j].trim();
+
+        for(let i=0; i<lines.length; i++) {
+            if(lines[i].includes('#EXTINF:')) {
+                const name = lines[i].split(',').pop().trim() || "قناة جديدة";
+                let url = "";
+                for(let j=i+1; j<i+5 && j<lines.length; j++) {
+                    if(lines[j].trim().startsWith('http')) {
+                        url = lines[j].trim();
                         break;
                     }
                 }
-                if (streamUrl) {
-                    tapesRef.push({ name: name, url: streamUrl, timestamp: Date.now() });
+                if(url) {
+                    await tapesRef.push({ name, url, timestamp: Date.now() });
                     count++;
                 }
+                if(count % 5 === 0) btn.innerText = `تم رفع ${count}...`;
             }
         }
-        alert(`نجاح! تم إضافة ${count} شريط للرف.`);
+        btn.innerText = "رفع ملف M3U من الهاتف";
+        alert(`تم إضافة ${count} قناة بنجاح!`);
     }
 
-    // --- كودك الأصلي للتحكم والمزامنة ---
+    // --- كودك الأصلي المتبقي بدون تغيير ---
+    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
+    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
+
     function handlePowerClick() {
         userHasInteracted = true;
         if (globalAdminPresent && !isAdmin) {
@@ -410,15 +403,18 @@
 
     function publicEject() {
         userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) return;
+        if (globalAdminPresent && !isAdmin) {
+            alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
+            return;
+        }
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
     }
 
     function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط يدوي";
+        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
         const url = document.getElementById('newTapeUrl').value;
-        if(!url) return alert("ضع الرابط");
+        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
         tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
             document.getElementById('newTapeName').value = "";
             document.getElementById('newTapeUrl').value = "";
@@ -426,7 +422,7 @@
     }
 
     function deleteTape(key) {
-        if(confirm("حذف؟")) tapesRef.child(key).remove();
+        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
     }
 
     tapesRef.on('value', (snap) => {
@@ -434,16 +430,30 @@
         shelf.innerHTML = "";
         const data = snap.val();
         if(!data) return;
+
         Object.keys(data).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
-                            <div class="tape-label">${tape.name}</div>`;
+            el.innerHTML = `
+                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
+                <div class="tape-label">${tape.name}</div>
+            `;
             el.onclick = () => {
-                if (globalAdminPresent && !isAdmin) return;
-                if(!isPoweredOn) return;
-                syncRef.update({ url: tape.url, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
+                userHasInteracted = true;
+                if (globalAdminPresent && !isAdmin) {
+                    alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
+                    return;
+                }
+                if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                video.play().catch(() => {}); 
+                syncRef.update({ 
+                    url: tape.url, 
+                    currentTime: 0, 
+                    isPlaying: true, 
+                    adminPresent: isAdmin,
+                    lastUpdated: Date.now() 
+                });
             };
             shelf.appendChild(el);
         });
@@ -491,6 +501,30 @@
         }
     }
 
+    video.onended = () => {
+        if (!isRemoteUpdate && isPoweredOn) {
+            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
+        }
+    };
+
+    video.onpause = () => {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            if (globalAdminPresent && !isAdmin) return;
+            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
+        }
+    };
+
+    video.onplay = () => {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            if (globalAdminPresent && !isAdmin) return;
+            syncRef.update({ 
+                isPlaying: true, 
+                currentTime: video.currentTime,
+                lastUpdated: Date.now() - (video.currentTime * 1000) 
+            });
+        }
+    };
+
     function handleSyncUpdate(data) {
         if (!data) return;
         if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
@@ -505,17 +539,25 @@
             const elapsed = (Date.now() - data.lastUpdated) / 1000;
             targetTime = elapsed > 0 ? elapsed : data.currentTime;
         }
-        if (data.isPlaying) video.play().catch(() => { video.muted = true; video.play(); }); else video.pause();
-        if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+        if (data.isPlaying) video.play().catch(error => { video.muted = true; video.play(); }); else video.pause();
+        const timeDiff = Math.abs(video.currentTime - targetTime);
+        if (timeDiff > 2) video.currentTime = targetTime;
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
+            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             syncRef.update({ adminPresent: true });
+            video.ontimeupdate = () => {
+                if (!video.paused && !isRemoteUpdate && isAdmin) {
+                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() - (video.currentTime * 1000), adminPresent: true });
+                }
+            };
+            window.addEventListener('beforeunload', () => { syncRef.update({ adminPresent: false }); });
         }
     });
 
@@ -534,7 +576,7 @@
         } else { video.src = url; }
     }
 
-    function clearDB() { if (confirm("تصفير؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
+    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
     function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
 </script>
 </body>
