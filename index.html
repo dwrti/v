@@ -9,7 +9,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
         :root { 
@@ -61,10 +60,6 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
         }
 
         #noise-canvas {
@@ -76,17 +71,15 @@
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        /* حاوي مشغل يوتيوب لضمان التزامن والصوت */
-        #yt-player { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; display: none; }
 
         .tv-controls {
             display: flex;
             justify-content: center;
-            gap: 15px;
+            gap: 20px;
             padding: 10px 0 5px 0;
         }
         
-        .power-btn, .eject-btn, .extra-btn {
+        .power-btn, .eject-btn {
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -107,12 +100,9 @@
         .power-icon { width: 15px; height: 15px; fill: var(--power-red); }
         .power-btn.active .power-icon { fill: var(--power-green); }
 
-        .eject-icon, .extra-icon { width: 18px; height: 18px; fill: #666; }
+        .eject-icon { width: 18px; height: 18px; fill: #666; }
         .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
         .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
-        
-        .extra-btn:hover { border-color: var(--pure-white); }
-        .extra-btn:hover .extra-icon { fill: var(--pure-white); }
 
         .control-panel { 
             background: var(--target-navy); 
@@ -234,12 +224,11 @@
 <body> 
 
 <div class="container">
-    <div class="tv-unit" id="fullTv">
-        <div class="screen-border" id="screenContainer">
-            <div id="tap-overlay" onclick="handlePowerClick()">CH-00</div>
+    <div class="tv-unit">
+        <div class="screen-border">
+            <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
-            <div id="yt-player"></div>
         </div>
         
         <div class="tv-controls">
@@ -252,12 +241,6 @@
                 <svg class="eject-icon" viewBox="0 0 24 24">
                     <path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/>
                 </svg>
-            </div>
-            <div class="extra-btn" onclick="goFullScreen()">
-                <svg class="extra-icon" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-            </div>
-            <div class="extra-btn" onclick="playRandomYT()">
-                <svg class="extra-icon" viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
             </div>
         </div>
     </div>
@@ -302,7 +285,6 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-    let ytPlayer = null;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -319,33 +301,6 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
-
-    // ميزة الفول سكرين المتوافقة مع كودك
-    function goFullScreen() {
-        const tv = document.getElementById('fullTv');
-        if (tv.requestFullscreen) tv.requestFullscreen();
-        else if (tv.webkitRequestFullscreen) tv.webkitRequestFullscreen();
-        else if (tv.msRequestFullscreen) tv.msRequestFullscreen();
-    }
-
-    // تشغيل يوتيوب عشوائي
-    async function playRandomYT() {
-        if (globalAdminPresent && !isAdmin) return;
-        if (!isPoweredOn) return;
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=vhs-aesthetic&type=video&key=AIzaSyApcJFw0ykpP16ao2D82f8cGECFapJu1k4`);
-        const data = await res.json();
-        const vidId = data.items[Math.floor(Math.random()*data.items.length)].id.videoId;
-        syncRef.update({ url: vidId, isYT: true, isPlaying: true, lastUpdated: Date.now() });
-    }
-
-    // إعداد مشغل يوتيوب المخفي
-    function onYouTubeIframeAPIReady() {
-        ytPlayer = new YT.Player('yt-player', {
-            height: '100%', width: '100%',
-            playerVars: { 'autoplay': 1, 'controls': 0, 'rel': 0, 'disablekb': 1 },
-            events: { 'onReady': (e) => { if(isPoweredOn) e.target.unMute(); } }
-        });
-    }
 
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
@@ -371,9 +326,7 @@
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
-            document.getElementById('yt-player').style.display = 'none';
             video.pause();
-            if(ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
         }
@@ -381,40 +334,59 @@
 
     function publicEject() {
         userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل"); return; }
-        if(!isPoweredOn) return;
+        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
+        if (globalAdminPresent && !isAdmin) {
+            alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
+            return;
+        }
+        if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
     }
 
-    // باقي دوال التيب والآدمن (كما هي في كودك)
     function addNewTape() {
         const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
         const url = document.getElementById('newTapeUrl').value;
-        if(!url) return;
+        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
         tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
             document.getElementById('newTapeName').value = "";
             document.getElementById('newTapeUrl').value = "";
         });
     }
 
-    function deleteTape(key) { if(confirm("حذف؟")) tapesRef.child(key).remove(); }
+    function deleteTape(key) {
+        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
+    }
 
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
-        const data = snap.val(); if(!data) return;
+        const data = snap.val();
+        if(!data) return;
+
         Object.keys(data).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div><div class="tape-label">${tape.name}</div>`;
+            el.innerHTML = `
+                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
+                <div class="tape-label">${tape.name}</div>
+            `;
             el.onclick = () => {
-                if (globalAdminPresent && !isAdmin) return;
-                if(!isPoweredOn) return;
-                const isYT = tape.url.includes('youtube.com') || tape.url.includes('youtu.be') || tape.url.length === 11;
-                let finalUrl = tape.url;
-                if(isYT && tape.url.includes('v=')) finalUrl = tape.url.split('v=')[1].split('&')[0];
-                syncRef.update({ url: finalUrl, isYT: isYT, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
+                userHasInteracted = true;
+                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
+                if (globalAdminPresent && !isAdmin) {
+                    alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
+                    return;
+                }
+                if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                video.play().catch(() => {}); 
+                syncRef.update({ 
+                    url: tape.url, 
+                    currentTime: 0, 
+                    isPlaying: true, 
+                    adminPresent: isAdmin,
+                    lastUpdated: Date.now() 
+                });
             };
             shelf.appendChild(el);
         });
@@ -432,7 +404,8 @@
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
         noiseNode = audioCtx.createBufferSource();
         noiseNode.buffer = buffer; noiseNode.loop = true;
-        const gainNode = audioCtx.createGain(); gainNode.gain.value = 0.04;
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.04;
         noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
         noiseNode.start();
     }
@@ -461,58 +434,118 @@
         }
     }
 
-    // دالة التزامن المطورة لتدعم يوتيوب بدون حذف منطق كودك الأصلي
+    video.onended = () => {
+        if (!isRemoteUpdate && isPoweredOn) {
+            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
+        }
+    };
+
+    video.onpause = () => {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
+            if (globalAdminPresent && !isAdmin) return;
+            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
+        }
+    };
+
+    video.onplay = () => {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
+            if (globalAdminPresent && !isAdmin) return;
+            syncRef.update({ 
+                isPlaying: true, 
+                currentTime: video.currentTime,
+                lastUpdated: Date.now() - (video.currentTime * 1000) 
+            });
+        }
+    };
+
     function handleSyncUpdate(data) {
         if (!data) return;
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
+
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
+            applyPowerState(data.tvPower);
+        }
+
         globalAdminPresent = data.adminPresent || false;
+
         if (!isPoweredOn) return;
 
         if (!data.url) {
-            video.style.display = 'none'; document.getElementById('yt-player').style.display = 'none';
-            video.pause(); if(ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+            video.style.display = 'none'; video.pause();
             toggleStatic(true); return;
         }
         
         isRemoteUpdate = true;
+        video.style.display = 'block'; 
         toggleStatic(false); 
-
-        if (data.isYT) {
-            video.style.display = 'none'; video.pause();
-            document.getElementById('yt-player').style.display = 'block';
-            let startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
-            if (ytPlayer && ytPlayer.loadVideoById) {
-                const currentId = ytPlayer.getVideoData ? ytPlayer.getVideoData().video_id : "";
-                if(currentId !== data.url) {
-                    ytPlayer.loadVideoById({ videoId: data.url, startSeconds: startAt > 0 ? startAt : 0 });
-                    ytPlayer.unMute();
-                }
-            }
-        } else {
-            document.getElementById('yt-player').style.display = 'none';
-            video.style.display = 'block'; 
-            if (!video.src.includes(data.url)) loadVideo(data.url);
-            let targetTime = (Date.now() - data.lastUpdated) / 1000;
-            if (data.isPlaying) video.play().catch(() => { video.muted = true; video.play(); }); 
-            else video.pause();
-            if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+        
+        if (!video.src.includes(data.url)) {
+            loadVideo(data.url);
         }
+
+        let targetTime = data.currentTime;
+        if (data.isPlaying && data.lastUpdated) {
+            const elapsed = (Date.now() - data.lastUpdated) / 1000;
+            targetTime = elapsed > 0 ? elapsed : data.currentTime;
+        }
+
+        if (data.isPlaying) { 
+            video.play().catch(error => {
+                video.muted = true;
+                video.play();
+            }); 
+        } else { 
+            video.pause(); 
+        }
+
+        const timeDiff = Math.abs(video.currentTime - targetTime);
+        if (timeDiff > 2) video.currentTime = targetTime;
         
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
-    // باقي منطق الآدمن وتسجيل الدخول (كما هو في كودك)
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
+            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            
             syncRef.update({ adminPresent: true });
+
+            video.ontimeupdate = () => {
+                if (!video.paused && !isRemoteUpdate && isAdmin) {
+                    syncRef.update({ 
+                        currentTime: video.currentTime, 
+                        lastUpdated: Date.now() - (video.currentTime * 1000),
+                        adminPresent: true 
+                    });
+                }
+            };
+
+            window.addEventListener('beforeunload', () => {
+                syncRef.update({ adminPresent: false });
+            });
         }
     });
 
     document.getElementById('adminPass').addEventListener('input', (e) => {
         if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
+    });
+
+    document.getElementById('videoUrl').addEventListener('change', (e) => {
+        const val = e.target.value.trim();
+        if (val.startsWith('http')) {
+            syncRef.update({ 
+                url: val, 
+                currentTime: 0, 
+                isPlaying: true, 
+                adminPresent: isAdmin,
+                lastUpdated: Date.now() 
+            });
+            e.target.value = "";
+        }
     });
 
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
@@ -521,13 +554,17 @@
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } 
-            else { video.src = url; }
+            if (Hls.isSupported()) { 
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
+            } else { video.src = url; }
         } else { video.src = url; }
     }
 
-    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
-    function clearDB() { if (confirm("ضبط؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
+    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
+    function adminLogout() { 
+        syncRef.update({ adminPresent: false });
+        auth.signOut().then(() => location.reload()); 
+    }
 </script>
 </body>
 </html>
