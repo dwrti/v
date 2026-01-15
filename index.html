@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync Control - IPTV Ready</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -286,6 +286,7 @@
     let globalAdminPresent = false;
     let userHasInteracted = false;
 
+    // تهيئة Firebase (بياناتك الأصلية)
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -302,8 +303,39 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
-    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
+    // دالة تحميل الفيديو المطورة لدعم IPTV
+    let hls;
+    function loadVideo(url) {
+        if (hls) { hls.destroy(); hls = null; }
+        video.src = ""; // تنظيف المصدر القديم
+
+        // إذا كان الرابط HLS (m3u8) أو رابط IPTV (يحتوي على منفذ :80 أو أرقام طويلة)
+        if (url.includes('.m3u8') || url.includes(':80') || url.split('/').length > 4) {
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    enableWorker: true,
+                    xhrSetup: function(xhr, url) { xhr.withCredentials = false; }
+                });
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        console.warn("HLS error, trying direct source...");
+                        video.src = url; // محاولة أخيرة مباشرة
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+            } else {
+                video.src = url;
+            }
+        } else {
+            video.src = url; // للملفات العادية mp4
+        }
+    }
+
+    document.addEventListener('mousedown', () => { if(!userHasInteracted) { userHasInteracted = true; initAudio(); }}, {once: false});
+    document.addEventListener('touchstart', () => { if(!userHasInteracted) { userHasInteracted = true; initAudio(); }}, {once: false});
 
     function handlePowerClick() {
         userHasInteracted = true;
@@ -334,7 +366,6 @@
 
     function publicEject() {
         userHasInteracted = true;
-        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
@@ -344,7 +375,7 @@
     }
 
     function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
+        const name = document.getElementById('newTapeName').value || "شريط IPTV";
         const url = document.getElementById('newTapeUrl').value;
         if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
         tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
@@ -373,13 +404,12 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
-                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                video.play().catch(() => {}); 
+                
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -440,26 +470,6 @@
         }
     };
 
-    video.onpause = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
-        }
-    };
-
-    video.onplay = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ 
-                isPlaying: true, 
-                currentTime: video.currentTime,
-                lastUpdated: Date.now() - (video.currentTime * 1000) 
-            });
-        }
-    };
-
     function handleSyncUpdate(data) {
         if (!data) return;
 
@@ -480,7 +490,8 @@
         video.style.display = 'block'; 
         toggleStatic(false); 
         
-        if (!video.src.includes(data.url)) {
+        // التحقق مما إذا كان المصدر تغير فعلاً
+        if (video.src !== data.url) {
             loadVideo(data.url);
         }
 
@@ -491,7 +502,7 @@
         }
 
         if (data.isPlaying) { 
-            video.play().catch(error => {
+            video.play().catch(() => {
                 video.muted = true;
                 video.play();
             }); 
@@ -502,16 +513,14 @@
         const timeDiff = Math.abs(video.currentTime - targetTime);
         if (timeDiff > 2) video.currentTime = targetTime;
         
-        setTimeout(() => { isRemoteUpdate = false; }, 200);
+        setTimeout(() => { isRemoteUpdate = false; }, 500);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
-            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
 
             video.ontimeupdate = () => {
@@ -549,16 +558,6 @@
     });
 
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-
-    let hls;
-    function loadVideo(url) {
-        if (hls) hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
-        } else { video.src = url; }
-    }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
     function adminLogout() { 
