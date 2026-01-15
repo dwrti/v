@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync Control - Fixed Audio</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -72,8 +72,32 @@
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
         
-        /* طبقة اليوتيوب */
-        #youtube-layer { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 3; display: none; }
+        #youtube-layer { 
+            width: 100%; 
+            height: 100%; 
+            position: absolute; 
+            top:0; left:0; 
+            z-index: 3; 
+            display: none; 
+        }
+
+        /* زر تفعيل الصوت */
+        #unmute-hint {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 150;
+            background: rgba(255, 75, 43, 0.9);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 10px;
+            cursor: pointer;
+            display: none;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
         .tv-controls {
             display: flex;
@@ -231,6 +255,7 @@
 <div class="container">
     <div class="tv-unit">
         <div class="screen-border">
+            <div id="unmute-hint" onclick="unmuteYoutube()">اضغط هنا لتشغيل الصوت 🔊</div>
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
@@ -290,12 +315,14 @@
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
     const youtubeLayer = document.getElementById('youtube-layer');
+    const unmuteHint = document.getElementById('unmute-hint');
     
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
+    let currentYtId = null;
 
     const YT_API_KEY = "AIzaSyApcJFw0ykpP16ao2D82f8cGECFapJu1k4";
 
@@ -315,14 +342,29 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
+    // دالة فتح الصوت لليوتيوب
+    function unmuteYoutube() {
+        if (currentYtId) {
+            let startAt = 0;
+            syncRef.once('value', (snap) => {
+                const data = snap.val();
+                if (data && data.lastUpdated) {
+                    startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
+                }
+                // إعادة تحميل الـ iframe بدون Mute
+                const embedUrl = `https://www.youtube.com/embed/${currentYtId}?autoplay=1&mute=0&controls=0&start=${startAt}&rel=0`;
+                youtubeLayer.innerHTML = `<iframe width="100%" height="100%" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
+                unmuteHint.style.display = 'none';
+            });
+        }
+    }
+
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // دالة توليد حروف عشوائية للبحث
     function generateRandomQuery() {
         const chars = "abcdefghijklmnopqrstuvwxyz";
         return chars.charAt(Math.floor(Math.random() * chars.length)) + 
-               chars.charAt(Math.floor(Math.random() * chars.length)) + 
                chars.charAt(Math.floor(Math.random() * chars.length));
     }
 
@@ -350,12 +392,8 @@
 
     function handlePowerClick() {
         userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) {
-            alert("الأدمن متصل، هو فقط من يتحكم بالطاقة حالياً");
-            return;
-        }
-        const nextState = !isPoweredOn;
-        syncRef.update({ tvPower: nextState });
+        if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل"); return; }
+        syncRef.update({ tvPower: !isPoweredOn });
     }
 
     function applyPowerState(state) {
@@ -371,6 +409,7 @@
             video.style.display = 'none';
             youtubeLayer.style.display = 'none';
             youtubeLayer.innerHTML = "";
+            unmuteHint.style.display = 'none';
             video.pause();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
@@ -378,27 +417,16 @@
     }
 
     function publicEject() {
-        userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) {
-            alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
-            return;
-        }
-        if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+        if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل"); return; }
+        if(!isPoweredOn) return;
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
     }
 
     function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
+        const name = document.getElementById('newTapeName').value || "شريط";
         const url = document.getElementById('newTapeUrl').value;
-        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
-        tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
-            document.getElementById('newTapeName').value = "";
-            document.getElementById('newTapeUrl').value = "";
-        });
-    }
-
-    function deleteTape(key) {
-        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
+        if(!url) return;
+        tapesRef.push({ name: name, url: url, timestamp: Date.now() });
     }
 
     tapesRef.on('value', (snap) => {
@@ -406,31 +434,15 @@
         shelf.innerHTML = "";
         const data = snap.val();
         if(!data) return;
-
         Object.keys(data).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `
-                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
-                <div class="tape-label">${tape.name}</div>
-            `;
+            el.innerHTML = `<div class="tape-label">${tape.name}</div>`;
             el.onclick = () => {
-                userHasInteracted = true;
-                if (globalAdminPresent && !isAdmin) {
-                    alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
-                    return;
-                }
-                if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                video.play().catch(() => {}); 
-                syncRef.update({ 
-                    url: tape.url, 
-                    isYoutube: false,
-                    currentTime: 0, 
-                    isPlaying: true, 
-                    adminPresent: isAdmin,
-                    lastUpdated: Date.now() 
-                });
+                if (globalAdminPresent && !isAdmin) return;
+                if(!isPoweredOn) return;
+                syncRef.update({ url: tape.url, isYoutube: false, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
             };
             shelf.appendChild(el);
         });
@@ -445,16 +457,14 @@
         if (!audioCtx || noiseNode || !isPoweredOn) return;
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 0.05;
         noiseNode = audioCtx.createBufferSource();
         noiseNode.buffer = buffer; noiseNode.loop = true;
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.04;
-        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
+        noiseNode.connect(audioCtx.destination);
         noiseNode.start();
     }
 
-    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
+    function stopStaticSound() { if (noiseNode) { noiseNode.stop(); noiseNode = null; } }
 
     function loopNoise() {
         if (!isPoweredOn) return;
@@ -470,7 +480,7 @@
         if (show && isPoweredOn) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            stopStaticSound(); startStaticSound();
+            startStaticSound();
         } else {
             canvas.style.display = 'none';
             cancelAnimationFrame(noiseID); noiseID = null;
@@ -478,46 +488,16 @@
         }
     }
 
-    video.onended = () => {
-        if (!isRemoteUpdate && isPoweredOn) {
-            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
-        }
-    };
-
-    video.onpause = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
-        }
-    };
-
-    video.onplay = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ 
-                isPlaying: true, 
-                currentTime: video.currentTime,
-                lastUpdated: Date.now() - (video.currentTime * 1000) 
-            });
-        }
-    };
-
     function handleSyncUpdate(data) {
         if (!data) return;
-
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
-            applyPowerState(data.tvPower);
-        }
-
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
         globalAdminPresent = data.adminPresent || false;
         if (!isPoweredOn) return;
 
         if (!data.url) {
-            video.style.display = 'none'; 
-            youtubeLayer.style.display = 'none';
-            video.pause();
-            toggleStatic(true); 
-            return;
+            video.style.display = 'none'; youtubeLayer.style.display = 'none';
+            unmuteHint.style.display = 'none';
+            toggleStatic(true); return;
         }
         
         toggleStatic(false); 
@@ -526,34 +506,27 @@
             video.style.display = 'none'; video.pause();
             youtubeLayer.style.display = 'block';
             
-            let startAt = 0;
-            if (data.lastUpdated) {
-                startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
-            }
-
-            // استخدام الرابط الصحيح للمشغل مع تفعيل التشغيل التلقائي والصمت للمزامنة
-            const embedUrl = `https://www.youtube.com/embed/${data.url}?autoplay=1&mute=1&controls=0&start=${startAt}&rel=0&showinfo=0&modestbranding=1`;
-            
-            if (!youtubeLayer.innerHTML.includes(data.url)) {
+            if (currentYtId !== data.url) {
+                currentYtId = data.url;
+                let startAt = 0;
+                if (data.lastUpdated) startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
+                
+                // تشغيل صامت في البداية لضمان العمل التلقائي
+                const embedUrl = `https://www.youtube.com/embed/${data.url}?autoplay=1&mute=1&controls=0&start=${startAt}&rel=0`;
                 youtubeLayer.innerHTML = `<iframe width="100%" height="100%" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
+                unmuteHint.style.display = 'block';
             }
         } else {
+            currentYtId = null;
+            unmuteHint.style.display = 'none';
             youtubeLayer.style.display = 'none'; youtubeLayer.innerHTML = "";
             video.style.display = 'block'; 
-            isRemoteUpdate = true;
             if (!video.src.includes(data.url)) loadVideo(data.url);
-
-            let targetTime = data.currentTime;
-            if (data.isPlaying && data.lastUpdated) {
-                targetTime = (Date.now() - data.lastUpdated) / 1000;
-            }
-
-            if (data.isPlaying) { 
-                video.play().catch(() => { video.muted = true; video.play(); }); 
-            } else { video.pause(); }
-
+            let targetTime = data.currentTime || 0;
+            if (data.isPlaying && data.lastUpdated) targetTime = (Date.now() - data.lastUpdated) / 1000;
+            if (data.isPlaying) video.play().catch(() => { video.muted = true; video.play(); }); 
+            else video.pause();
             if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
-            setTimeout(() => { isRemoteUpdate = false; }, 200);
         }
     }
 
@@ -563,16 +536,6 @@
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             syncRef.update({ adminPresent: true });
-            video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now() - (video.currentTime * 1000),
-                        adminPresent: true 
-                    });
-                }
-            };
-            window.addEventListener('beforeunload', () => syncRef.update({ adminPresent: false }));
         }
     });
 
@@ -580,27 +543,14 @@
         if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
     });
 
-    document.getElementById('videoUrl').addEventListener('change', (e) => {
-        const val = e.target.value.trim();
-        if (val.startsWith('http')) {
-            syncRef.update({ url: val, isYoutube: false, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
-            e.target.value = "";
-        }
-    });
-
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
 
-    let hls;
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } 
-            else { video.src = url; }
+            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
         } else { video.src = url; }
     }
-
-    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
-    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
 </script>
 </body>
 </html>
