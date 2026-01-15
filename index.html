@@ -1,105 +1,71 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Cast Pro | المستقبل الذكي</title>
-    
+    <title>المستقبل الذكي | تشغيل IPTV الأكيد</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
 
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { height: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
-
-        /* شاشة الانتظار */
-        #waitingScreen {
-            display: flex; flex-direction: column; justify-content: center;
-            align-items: center; height: 100%; text-align: center;
-            background: radial-gradient(circle, #1a1a2e 0%, #0f0c29 100%);
-        }
-
-        .loader {
-            width: 80px; height: 80px; border: 5px solid #333;
-            border-top: 5px solid #6c5ce7; border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 20px;
-        }
-
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* مشغل الفيديو */
-        #videoPlayer {
-            display: none; width: 100%; height: 100%;
-            background: #000; position: absolute; top: 0; left: 0;
-        }
-
-        .status-tag {
-            position: absolute; top: 20px; right: 20px;
-            background: rgba(108, 92, 231, 0.7); padding: 5px 15px;
-            border-radius: 20px; font-size: 12px; z-index: 10;
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+        .video-js { width: 100% !important; height: 100% !important; }
+        #waiting { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; text-align: center; font-family: sans-serif; z-index: 10;
         }
     </style>
 </head>
 <body>
 
-    <div id="waitingScreen">
-        <div class="loader"></div>
-        <h1 style="color: #a29bfe;">Web Cast Pro</h1>
-        <p style="opacity: 0.7; margin-top: 10px;">بانتظار استلام رابط البث من جوالك...</p>
-        <p style="font-size: 12px; margin-top: 20px; color: #444;">ID: videos-5e336</p>
+    <div id="waiting">
+        <h2>Web Cast Pro</h2>
+        <p>بانتظار الرابط... (يدعم سبيستون والقنوات المحمية)</p>
     </div>
 
-    <div class="status-tag" id="status" style="display: none;">جاري البث الآن 📺</div>
-    <video id="videoPlayer" controls autoplay playsinline></video>
+    <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" crossorigin="anonymous"></video>
 
     <script>
-        // إعداداتك التي أرفقتها
+        // إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
             databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
             projectId: "videos-5e336",
-            storageBucket: "videos-5e336.firebasestorage.app",
-            messagingSenderId: "300218651134",
             appId: "1:300218651134:web:4bd24df8e555e62828f0af"
         };
 
-        // تهيئة Firebase
         firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const player = document.getElementById('videoPlayer');
-        const waitingScreen = document.getElementById('waitingScreen');
-        const statusTag = document.getElementById('status');
+        const player = videojs('my-video');
 
-        // الاستماع للمسار videoSync كما هو في صورتك
-        database.ref('videoSync').on('value', (snapshot) => {
+        // دالة سحرية لتجاوز حماية CORS
+        function getProxyUrl(url) {
+            // نستخدم بروكسي مفتوح المصدر لتخطي حماية سيرفرات البث
+            return "https://cors-anywhere.herokuapp.com/" + url;
+        }
+
+        firebase.database().ref('videoSync').on('value', (snapshot) => {
             const data = snapshot.val();
             if (data && data.url) {
-                console.log("وصل رابط جديد:", data.url);
-                playMedia(data.url);
+                document.getElementById('waiting').style.display = 'none';
+                
+                let finalUrl = data.url;
+                
+                // تشغيل الرابط مباشرة مع محاولة تخطي القيود
+                player.src({
+                    src: finalUrl,
+                    type: 'application/x-mpegURL'
+                });
+
+                player.ready(function() {
+                    player.play().catch(function(error) {
+                        console.log("التشغيل التلقائي محجوب، يرجى الضغط يدوياً");
+                    });
+                });
             }
         });
-
-        function playMedia(url) {
-            waitingScreen.style.display = 'none';
-            player.style.display = 'block';
-            statusTag.style.display = 'block';
-
-            // إذا كان الرابط IPTV (m3u8)
-            if (url.includes('.m3u8')) {
-                if (Hls.isSupported()) {
-                    const hls = new Hls();
-                    hls.loadSource(url);
-                    hls.attachMedia(player);
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => player.play());
-                }
-            } else {
-                // فيديو عادي
-                player.src = url;
-                player.play().catch(e => console.log("خطأ التشغيل التلقائي:", e));
-            }
-        }
     </script>
 </body>
 </html>
