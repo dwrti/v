@@ -45,6 +45,7 @@
             position: relative;
         }
 
+        /* --- تأثير تشغيل وإيقاف CRT الاحترافي --- */
         .screen-border { 
             background: #000; 
             aspect-ratio: 16 / 9; 
@@ -53,40 +54,42 @@
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            transition: all 0.5s ease;
         }
 
-        /* مؤثر CRT المحسن */
-        .crt-off {
-            animation: crt-off-anim 0.5s forwards;
-        }
-        .crt-on {
-            animation: crt-on-anim 0.5s forwards;
+        /* أنيميشن الإغلاق (ينكمش لخط أبيض ثم يختفي) */
+        .tv-off-anim {
+            animation: tv-shutdown 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
         }
 
-        @keyframes crt-off-anim {
-            0% { transform: scale(1, 1); filter: brightness(1); }
-            40% { transform: scale(1, 0.005); filter: brightness(2); }
-            100% { transform: scale(0, 0); filter: brightness(10); }
+        /* أنيميشن التشغيل (يتوسع من نقطة ضوء) */
+        .tv-on-anim {
+            animation: tv-startup 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
         }
 
-        @keyframes crt-on-anim {
-            0% { transform: scale(0, 0); filter: brightness(10); }
-            60% { transform: scale(1, 0.005); filter: brightness(2); }
+        @keyframes tv-shutdown {
+            0% { transform: scale(1, 1); filter: brightness(1) white(0); }
+            50% { transform: scale(1, 0.02); filter: brightness(2); }
+            100% { transform: scale(0, 0); filter: brightness(5); }
+        }
+
+        @keyframes tv-startup {
+            0% { transform: scale(0, 0); filter: brightness(5); }
+            50% { transform: scale(1, 0.02); filter: brightness(2); }
             100% { transform: scale(1, 1); filter: brightness(1); }
         }
 
-        /* خطوط المسح Scanlines */
-        .screen-border::after {
+        /* طبقة خفيفة من خطوط التلفزيون القديم */
+        .screen-border::before {
             content: " ";
             display: block;
             position: absolute;
             top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 10;
-            background-size: 100% 4px, 3px 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 5;
             pointer-events: none;
+            opacity: 0.3;
         }
 
         #tap-overlay {
@@ -101,7 +104,7 @@
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
-            display: none; /* تم إخفاؤه بناءً على طلبك */
+            display: none; /* مخفي كما طلبت */
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
@@ -259,7 +262,7 @@
 
 <div class="container">
     <div class="tv-unit">
-        <div class="screen-border" id="screen">
+        <div class="screen-border" id="tvScreen">
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
@@ -314,39 +317,13 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
-    const screen = document.getElementById('screen'); // تم الإضافة للمؤثر
+    const tvScreen = document.getElementById('tvScreen'); // للمؤثر البصري الجديد
 
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-
-    // --- أصوات CRT الجديدة ---
-    function playCRTSound(type) {
-        if (!audioCtx) initAudio();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        
-        if (type === 'on') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(15000, audioCtx.currentTime + 0.5);
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-        } else {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
-        }
-        
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.5);
-    }
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -377,25 +354,26 @@
         syncRef.update({ tvPower: nextState });
     }
 
+    // --- تعديل وظيفة التشغيل/الإيقاف لإضافة الأنيميشن ---
     function applyPowerState(state) {
-        if (isPoweredOn === state) return; // منع التكرار
+        if (state === isPoweredOn) return;
         isPoweredOn = state;
-        
+
         if (isPoweredOn) {
-            playCRTSound('on');
-            screen.classList.remove('crt-off');
-            screen.classList.add('crt-on');
+            // تشغيل التلفزيون
+            tvScreen.classList.remove('tv-off-anim');
+            tvScreen.classList.add('tv-on-anim');
             powerBtn.classList.add('active');
             
             setTimeout(() => {
                 overlay.style.display = 'none';
                 initAudio();
                 syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
-            }, 300);
+            }, 300); // تأخير بسيط ليظهر الأنيميشن
         } else {
-            playCRTSound('off');
-            screen.classList.remove('crt-on');
-            screen.classList.add('crt-off');
+            // إطفاء التلفزيون
+            tvScreen.classList.remove('tv-on-anim');
+            tvScreen.classList.add('tv-off-anim');
             powerBtn.classList.remove('active');
             
             setTimeout(() => {
@@ -404,7 +382,7 @@
                 video.pause();
                 toggleStatic(false);
                 if (audioCtx) audioCtx.suspend();
-            }, 400);
+            }, 400); // إخفاء المحتوى بعد انتهاء انكماش الشاشة
         }
     }
 
@@ -471,14 +449,11 @@
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    // تم تعديل هذه الدوال لتعمل بصمت كما طلبت
-    function startStaticSound() { return; } 
+    /* --- تعطيل الأصوات والتشويش تماماً كما طلبت --- */
+    function startStaticSound() { return; }
     function stopStaticSound() { return; }
     function loopNoise() { return; }
-    function toggleStatic(show) {
-        // تم تعطيل التشويش البصري أيضاً
-        canvas.style.display = 'none';
-    }
+    function toggleStatic(show) { canvas.style.display = 'none'; }
 
     video.onended = () => {
         if (!isRemoteUpdate && isPoweredOn) {
