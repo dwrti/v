@@ -3,29 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل البث المباشر</title>
-    
+    <title>مشغل البث المباشر - مع الصوت</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        .container { width: 100%; max-width: 800px; text-align: center; }
-        video { width: 100%; border: 2px solid #333; border-radius: 10px; background: #111; }
-        .status { margin-top: 10px; color: #00ff00; font-size: 14px; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .container { width: 100%; max-width: 800px; text-align: center; padding: 10px; }
+        video { width: 100%; border-radius: 12px; background: #111; box-shadow: 0 0 20px rgba(255,0,0,0.2); }
+        .btn-audio { margin-top: 15px; padding: 10px 20px; background: #e50914; color: white; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; font-size: 16px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>بث مباشر</h2>
+    <h2 id="title">بث مباشر سبيستون</h2>
+    
     <video id="video" controls autoplay playsinline></video>
-    <div id="status" class="status">جاري الاتصال بالسيرفر...</div>
+    
+    <button class="btn-audio" id="unmuteBtn">🔊 تشغيل الصوت</button>
 </div>
 
 <script>
     const video = document.getElementById('video');
-    const status = document.getElementById('status');
-    // الرابط الذي أرسلته
+    const unmuteBtn = document.getElementById('unmuteBtn');
     const videoSrc = 'https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264';
 
     if (Hls.isSupported()) {
@@ -33,23 +32,20 @@
         hls.loadSource(videoSrc);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-            status.innerText = "تم الاتصال - البث يعمل الآن";
-            video.play();
-        });
-        hls.on(Hls.Events.ERROR, function(event, data) {
-            if (data.fatal) {
-                status.style.color = "red";
-                status.innerText = "فشل التحميل: الرابط قد يحتاج لتحديث أو المتصفح يمنع الوصول.";
-            }
-        });
-    } 
-    // لدعم متصفحات آيفون (Safari) التي تدعم الصيغة تلقائياً
-    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = videoSrc;
-        video.addEventListener('loadedmetadata', function() {
-            video.play();
+            // محاولة التشغيل، وإذا رفض المتصفح سيبقى صامتاً حتى يضغط المستخدم على الزر
+            video.play().catch(() => {
+                video.muted = true; // نكتمه مؤقتاً ليعمل الفيديو، ثم يفتحه المستخدم
+                video.play();
+            });
         });
     }
+
+    // وظيفة الزر لتفعيل الصوت
+    unmuteBtn.addEventListener('click', function() {
+        video.muted = false;
+        video.volume = 1.0;
+        unmuteBtn.style.display = 'none'; // إخفاء الزر بعد تفعيل الصوت
+    });
 </script>
 
 </body>
