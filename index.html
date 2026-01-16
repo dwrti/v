@@ -3,108 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الفيديو المبسط</title>
+    <title>بث مباشر متزامن</title>
     <style>
-        body {
-            font-family: sans-serif;
-            background-color: #000;
-            color: #fff;
-            margin: 0;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .card {
-            background: #1e1e1e;
-            width: 100%;
-            max-width: 500px;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-            margin-bottom: 20px;
-        }
-        h2 { margin-top: 0; color: #00ccff; font-size: 1.2rem; }
-        input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: 1px solid #444;
-            border-radius: 8px;
-            background: #2a2a2a;
-            color: #fff;
-            box-sizing: border-box;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            background: #00ccff;
-            border: none;
-            border-radius: 8px;
-            color: #000;
-            font-weight: bold;
-            font-size: 1rem;
-        }
-        .video-container {
-            width: 100%;
-            max-width: 500px;
-            background: #000;
-            border: 2px solid #333;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        video {
-            width: 100%;
-            display: block;
-        }
-        .status {
-            margin-top: 10px;
-            font-size: 0.8rem;
-            color: #888;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .video-container { width: 90%; max-width: 700px; position: relative; }
+        video { width: 100%; border-radius: 12px; border: 2px solid #444; background: #000; }
+        .status-bar { margin-top: 15px; padding: 10px 20px; background: #333; border-radius: 20px; font-size: 14px; }
+        .btn-sync { margin-top: 20px; padding: 12px 25px; background: #ff4757; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
+        .btn-sync:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>🚀 مشغل الفيديو السريع</h2>
-        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو هنا مباشرة...">
-        <button onclick="playVideo()">تشغيل الآن</button>
-        <div id="status" class="status">جاهز للاستخدام..</div>
-    </div>
-
     <div class="video-container">
-        <video id="mainPlayer" controls autoplay playsinline>
-            Your browser does not support the video tag.
+        <video id="videoPlayer" controls playsinline>
+            <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
         </video>
     </div>
 
-    <script>
-        function playVideo() {
-            const url = document.getElementById('videoUrl').value.trim();
-            const video = document.getElementById('mainPlayer');
-            const status = document.getElementById('status');
+    <div class="status-bar" id="status">جاري الاتصال بـ Firebase...</div>
+    <button class="btn-sync" id="syncBtn">تفعيل المزامنة (للجوال)</button>
 
-            if (!url) {
-                alert("الرجاء وضع رابط فيديو!");
-                return;
+    <script type="module">
+        // استيراد المكتبات المطلوبة من Firebase CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // إعدادات مشروعك التي أرسلتها
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af",
+            measurementId: "G-2H4SJNLD1R"
+        };
+
+        // تشغيل Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const videoRef = ref(db, 'live_stream/room1');
+
+        const video = document.getElementById('videoPlayer');
+        const status = document.getElementById('status');
+        const syncBtn = document.getElementById('syncBtn');
+
+        // متغير لمنع "الحلقات اللانهائية" (تحديث المتصفح يحدث السيرفر والعكس)
+        let isUpdatingFromFirebase = false;
+
+        // 1. إرسال التحديثات (عندما يقوم أحد المستخدمين بالتحكم في الفيديو)
+        const updateServer = () => {
+            if (isUpdatingFromFirebase) return;
+            set(videoRef, {
+                currentTime: video.currentTime,
+                isPlaying: !video.paused,
+                timestamp: Date.now()
+            });
+        };
+
+        video.onplay = updateServer;
+        video.onpause = updateServer;
+        video.onseeking = updateServer;
+
+        // 2. استقبال التحديثات (عندما يتغير شيء في السيرفر)
+        onValue(videoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            isUpdatingFromFirebase = true;
+            status.innerText = "متصل - المزامنة نشطة";
+
+            // مزامنة الوقت إذا كان الفرق أكثر من ثانية
+            if (Math.abs(video.currentTime - data.currentTime) > 1.2) {
+                video.currentTime = data.currentTime;
             }
 
-            status.innerText = "جاري التحميل...";
+            // مزامنة التشغيل والإيقاف
+            if (data.isPlaying && video.paused) {
+                video.play().catch(e => {
+                    status.innerText = "اضغط الزر الأحمر لبدء المزامنة";
+                });
+            } else if (!data.isPlaying && !video.paused) {
+                video.pause();
+            }
 
-            // تحديث مصدر الفيديو
-            video.src = url;
-            
-            // محاولة التشغيل
-            video.load();
-            video.play().then(() => {
-                status.innerText = "يتم التشغيل الآن ✅";
-            }).catch(error => {
-                status.innerText = "خطأ: تأكد من صحة الرابط أو صيغة الفيديو.";
-                console.error("Playback error:", error);
-            });
-        }
+            setTimeout(() => { isUpdatingFromFirebase = false; }, 500);
+        });
+
+        // زر التفعيل لجوالات الأيفون والأندرويد (ضروري جداً)
+        syncBtn.onclick = () => {
+            video.play();
+            status.innerText = "تم التفعيل بنجاح ✅";
+            syncBtn.style.display = 'none';
+        };
     </script>
-
 </body>
 </html>
