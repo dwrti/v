@@ -132,6 +132,8 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
+        .status-msg { margin-top: 5px; color: #00ff00; font-size: 10px; text-align: center; min-height: 12px; }
+
         .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
         
         .vhs-shelf { 
@@ -231,6 +233,8 @@
             <video id="video" controls playsinline></video>
         </div>
         
+        <div id="connectionStatus" class="status-msg"></div>
+
         <div class="tv-controls">
             <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
                 <svg class="power-icon" viewBox="0 0 24 24">
@@ -280,11 +284,13 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
+    const statusLabel = document.getElementById('connectionStatus');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
+    let hls = null;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -328,19 +334,59 @@
             video.style.display = 'none';
             video.pause();
             toggleStatic(false);
+            statusLabel.innerText = "";
             if (audioCtx) audioCtx.suspend();
         }
     }
 
     function publicEject() {
         userHasInteracted = true;
-        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
         }
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
+    }
+
+    function loadVideo(videoSrc) {
+        if (!videoSrc) return;
+        
+        // تنظيف أي نسخة HLS سابقة
+        if (hls) {
+            hls.destroy();
+            hls = null;
+        }
+
+        // الكود المدمج للمشغل الجديد
+        if (videoSrc.includes('.m3u8')) {
+            if (Hls.isSupported()) {
+                hls = new Hls();
+                hls.loadSource(videoSrc);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    statusLabel.style.color = "#00ff00";
+                    statusLabel.innerText = "متصل - البث يعمل";
+                    if(isPoweredOn) video.play().catch(()=>{});
+                });
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    if (data.fatal) {
+                        statusLabel.style.color = "red";
+                        statusLabel.innerText = "فشل تحميل البث المباشر";
+                    }
+                });
+            } 
+            else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = videoSrc;
+                video.addEventListener('loadedmetadata', function() {
+                    if(isPoweredOn) video.play().catch(()=>{});
+                }, { once: true });
+            }
+        } else {
+            // فيديوهات عادية (MP4)
+            video.src = videoSrc;
+            statusLabel.innerText = "";
+        }
     }
 
     function addNewTape() {
@@ -373,7 +419,6 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
-                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
@@ -442,7 +487,6 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -450,7 +494,6 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
@@ -500,7 +543,7 @@
         }
 
         const timeDiff = Math.abs(video.currentTime - targetTime);
-        if (timeDiff > 2) video.currentTime = targetTime;
+        if (timeDiff > 2 && !video.src.includes('.m3u8')) video.currentTime = targetTime;
         
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
@@ -511,11 +554,10 @@
             userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
 
             video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate && isAdmin) {
+                if (!video.paused && !isRemoteUpdate && isAdmin && !video.src.includes('.m3u8')) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
                         lastUpdated: Date.now() - (video.currentTime * 1000),
@@ -549,16 +591,6 @@
     });
 
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-
-    let hls;
-    function loadVideo(url) {
-        if (hls) hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
-        } else { video.src = url; }
-    }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
     function adminLogout() { 
