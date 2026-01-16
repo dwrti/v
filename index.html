@@ -287,7 +287,7 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-    let ytPlayer = null; // متغير لمشغل يوتيوب
+    let ytPlayer = null; 
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -308,19 +308,18 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // دالة لاستخراج ID اليوتيوب
     function getYTId(url) {
+        if (!url) return null;
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
         const match = url.match(regExp);
         return (match && match[2].length === 11) ? match[2] : null;
     }
 
-    // إعداد مشغل يوتيوب عند جاهزية المكتبة
     function onYouTubeIframeAPIReady() {
         ytPlayer = new YT.Player('yt-player', {
             height: '100%',
             width: '100%',
-            playerVars: { 'autoplay': 0, 'controls': 1, 'modestbranding': 1, 'playsinline': 1 },
+            playerVars: { 'autoplay': 0, 'controls': 1, 'modestbranding': 1, 'playsinline': 1, 'rel': 0 },
             events: {
                 'onStateChange': onPlayerStateChange
             }
@@ -328,6 +327,7 @@
     }
 
     function onPlayerStateChange(event) {
+        // إذا قام المستخدم بالتقديم يدوياً، نقوم بتحديث الداتابيز
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             if (globalAdminPresent && !isAdmin) return;
             const isPlaying = (event.data == YT.PlayerState.PLAYING);
@@ -516,13 +516,16 @@
         const ytId = getYTId(data.url);
 
         if (ytId) {
-            // تشغيل يوتيوب
             video.style.display = 'none';
             video.pause();
             document.getElementById('yt-player').style.display = 'block';
             
-            if (ytPlayer && ytPlayer.getVideoData && ytPlayer.getVideoData().video_id !== ytId) {
-                ytPlayer.loadVideoById(ytId, data.currentTime || 0);
+            // إصلاح التعليق عند التبديل بين الروابط
+            if (ytPlayer && ytPlayer.loadVideoById) {
+                const currentData = ytPlayer.getVideoData ? ytPlayer.getVideoData() : null;
+                if (!currentData || currentData.video_id !== ytId) {
+                    ytPlayer.loadVideoById(ytId, data.currentTime || 0);
+                }
             }
 
             let targetTime = data.currentTime;
@@ -530,17 +533,20 @@
                 targetTime = (Date.now() - data.lastUpdated) / 1000;
             }
 
-            if (data.isPlaying) {
-                ytPlayer.playVideo();
-            } else {
-                ytPlayer.pauseVideo();
-            }
+            // تنفيذ المزامنة فقط إذا كان الفارق كبيراً (أكثر من 3 ثواني) لتجنب التعليق
+            if (ytPlayer && ytPlayer.getCurrentTime) {
+                if (data.isPlaying) {
+                    if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) ytPlayer.playVideo();
+                } else {
+                    if (ytPlayer.getPlayerState() !== YT.PlayerState.PAUSED) ytPlayer.pauseVideo();
+                }
 
-            if (ytPlayer.getCurrentTime && Math.abs(ytPlayer.getCurrentTime() - targetTime) > 2) {
-                ytPlayer.seekTo(targetTime);
+                const timeDiff = Math.abs(ytPlayer.getCurrentTime() - targetTime);
+                if (timeDiff > 3) { // زيادة العتبة لـ 3 ثواني
+                    ytPlayer.seekTo(targetTime, true);
+                }
             }
         } else {
-            // تشغيل فيديو عادي
             if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             video.style.display = 'block'; 
@@ -564,7 +570,7 @@
             if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
         }
         
-        setTimeout(() => { isRemoteUpdate = false; }, 500);
+        setTimeout(() => { isRemoteUpdate = false; }, 1000); // زيادة مدة الانتظار
     }
 
     auth.onAuthStateChanged(user => {
@@ -575,13 +581,14 @@
             document.getElementById('adminSection').style.display = 'block';
             syncRef.update({ adminPresent: true });
 
+            // تقليل وتيرة التحديث لـ 4 ثواني لضمان عدم التعليق عند التقديم
             setInterval(() => {
                 if (isAdmin && isPoweredOn && !isRemoteUpdate) {
                     let curr = 0, playing = false;
                     if (video.style.display !== 'none') {
                         curr = video.currentTime;
                         playing = !video.paused;
-                    } else if (ytPlayer && ytPlayer.getCurrentTime) {
+                    } else if (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getPlayerState) {
                         curr = ytPlayer.getCurrentTime();
                         playing = (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
                     }
@@ -593,7 +600,7 @@
                         });
                     }
                 }
-            }, 5000);
+            }, 4000);
 
             window.addEventListener('beforeunload', () => {
                 syncRef.update({ adminPresent: false });
