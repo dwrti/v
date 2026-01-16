@@ -2,101 +2,101 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بث مباشر متزامن</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spacetoon Live Sync</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .video-container { width: 90%; max-width: 700px; position: relative; }
-        video { width: 100%; border-radius: 12px; border: 2px solid #444; background: #000; }
-        .status-bar { margin-top: 15px; padding: 10px 20px; background: #333; border-radius: 20px; font-size: 14px; }
-        .btn-sync { margin-top: 20px; padding: 12px 25px; background: #ff4757; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
-        .btn-sync:active { transform: scale(0.95); }
+        body { margin: 0; background: #000; color: white; font-family: sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .container { width: 100%; max-width: 900px; position: relative; }
+        video { width: 100%; aspect-ratio: 16/9; background: #000; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
+        .live-label { position: absolute; top: 15px; right: 15px; background: red; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; z-index: 5; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+        .play-icon { font-size: 50px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="video-container">
-        <video id="videoPlayer" controls playsinline>
-            <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-        </video>
+    <div id="overlay">
+        <div class="play-icon">▶️</div>
+        <b>انقر للانضمام للبث المباشر</b>
+        <small style="color: #888; margin-top: 5px;">سيتم مزامنة الوقت تلقائياً</small>
     </div>
 
-    <div class="status-bar" id="status">جاري الاتصال بـ Firebase...</div>
-    <button class="btn-sync" id="syncBtn">تفعيل المزامنة (للجوال)</button>
+    <div class="container">
+        <div class="live-label">بث مباشر</div>
+        <video id="video" playsinline></video>
+    </div>
 
     <script type="module">
-        // استيراد المكتبات المطلوبة من Firebase CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // إعدادات مشروعك التي أرسلتها
+        // إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-            authDomain: "videos-5e336.firebaseapp.com",
             databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
             projectId: "videos-5e336",
-            storageBucket: "videos-5e336.firebasestorage.app",
-            messagingSenderId: "300218651134",
-            appId: "1:300218651134:web:4bd24df8e555e62828f0af",
-            measurementId: "G-2H4SJNLD1R"
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
         };
 
-        // تشغيل Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const videoRef = ref(db, 'live_stream/room1');
+        const syncRef = ref(db, 'spacetoon_live/status');
 
-        const video = document.getElementById('videoPlayer');
-        const status = document.getElementById('status');
-        const syncBtn = document.getElementById('syncBtn');
+        const video = document.getElementById('video');
+        const overlay = document.getElementById('overlay');
+        const hlsUrl = 'https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264';
 
-        // متغير لمنع "الحلقات اللانهائية" (تحديث المتصفح يحدث السيرفر والعكس)
-        let isUpdatingFromFirebase = false;
+        // إعداد مشغل HLS
+        if (Hls.isSupported()) {
+            const hls = new Hls();
+            hls.loadSource(hlsUrl);
+            hls.attachMedia(video);
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = hlsUrl; // دعم آيفون (Safari)
+        }
 
-        // 1. إرسال التحديثات (عندما يقوم أحد المستخدمين بالتحكم في الفيديو)
-        const updateServer = () => {
-            if (isUpdatingFromFirebase) return;
-            set(videoRef, {
-                currentTime: video.currentTime,
-                isPlaying: !video.paused,
+        let remoteSyncing = false;
+
+        // إرسال الحالة (عندما يضغط أحد "إيقاف" أو "تشغيل")
+        const updateFirebase = () => {
+            if (remoteSyncing) return;
+            set(syncRef, {
+                playing: !video.paused,
                 timestamp: Date.now()
             });
         };
 
-        video.onplay = updateServer;
-        video.onpause = updateServer;
-        video.onseeking = updateServer;
+        video.onplay = updateFirebase;
+        video.onpause = updateFirebase;
 
-        // 2. استقبال التحديثات (عندما يتغير شيء في السيرفر)
-        onValue(videoRef, (snapshot) => {
-            const data = snapshot.val();
+        // استقبال الحالة من Firebase
+        onValue(syncRef, (snap) => {
+            const data = snap.val();
             if (!data) return;
 
-            isUpdatingFromFirebase = true;
-            status.innerText = "متصل - المزامنة نشطة";
-
-            // مزامنة الوقت إذا كان الفرق أكثر من ثانية
-            if (Math.abs(video.currentTime - data.currentTime) > 1.2) {
-                video.currentTime = data.currentTime;
-            }
-
-            // مزامنة التشغيل والإيقاف
-            if (data.isPlaying && video.paused) {
-                video.play().catch(e => {
-                    status.innerText = "اضغط الزر الأحمر لبدء المزامنة";
-                });
-            } else if (!data.isPlaying && !video.paused) {
+            remoteSyncing = true;
+            if (data.playing && video.paused) {
+                video.play().catch(() => {});
+            } else if (!data.playing && !video.paused) {
                 video.pause();
             }
+            
+            // في البث المباشر، نجبر المشغل على القفز للنقطة الحية (Live Edge)
+            // إذا كان الفارق عن "نهاية البث" أكثر من 5 ثوانٍ
+            if (video.duration && Math.abs(video.currentTime - video.duration) > 5) {
+                video.currentTime = video.duration;
+            }
 
-            setTimeout(() => { isUpdatingFromFirebase = false; }, 500);
+            setTimeout(() => { remoteSyncing = false; }, 500);
         });
 
-        // زر التفعيل لجوالات الأيفون والأندرويد (ضروري جداً)
-        syncBtn.onclick = () => {
+        // تشغيل عند النقر (ضروري لسياسة المتصفح)
+        overlay.onclick = () => {
+            overlay.style.display = 'none';
             video.play();
-            status.innerText = "تم التفعيل بنجاح ✅";
-            syncBtn.style.display = 'none';
+            // القفز لأحدث لحظة في البث فور الدخول
+            if(video.duration) video.currentTime = video.duration;
         };
     </script>
 </body>
