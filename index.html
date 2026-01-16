@@ -3,72 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المشغل الذكي المطور</title>
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <title>بث مباشر - سبيستون</title>
+    
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    
     <style>
-        body { background-color: #0a0a0a; color: #00ffcc; font-family: sans-serif; text-align: center; padding: 20px; }
-        .container { max-width: 600px; margin: auto; }
-        input { width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #333; background: #1a1a1a; color: white; margin-bottom: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #00ffcc; color: black; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        #fallback-msg { display: none; background: #ff4444; color: white; padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 14px; }
-        .video-box { background: black; border-radius: 10px; overflow: hidden; margin-top: 20px; border: 2px solid #222; }
+        body { margin: 0; padding: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
+        .video-container { width: 100%; max-width: 900px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>⚡ مشغل الفيديو الخارق</h2>
-    <input type="text" id="videoUrl" placeholder="الصق الرابط هنا..." />
-    <button onclick="smartPlay()">تشغيل الفيديو الآن</button>
-    
-    <div id="fallback-msg">جاري محاولة التشغيل عبر المشغل البديل...</div>
-
-    <div class="video-box">
-        <video id="puffin_video" class="video-js vjs-default-skin vjs-16-9" controls preload="auto" width="auto">
-            <p>متصفحك لا يدعم التشغيل.</p>
-        </video>
-    </div>
+<div class="video-container">
+    <video id="player" controls crossorigin playsinline poster="https://static.spacetoon.com/images/logo.png"></video>
 </div>
 
-<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 
 <script>
-    var player = videojs('puffin_video');
-
-    function smartPlay() {
-        var url = document.getElementById('videoUrl').value.trim();
-        var msg = document.getElementById('fallback-msg');
+    document.addEventListener('DOMContentLoaded', () => {
+        const source = 'https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264';
+        const video = document.getElementById('player');
         
-        if (!url) return alert("ضع الرابط أولاً");
+        // خيارات المشغل (التعريب والإعدادات)
+        const defaultOptions = {
+            i18n: { speed: 'السرعة', normal: 'طبيعي', quality: 'الجودة' },
+            controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'settings', 'pip', 'fullscreen']
+        };
 
-        msg.style.display = "none";
-
-        // محاولة التشغيل عبر المشغل الاحترافي
-        try {
-            player.src({ src: url, type: 'video/mp4' }); // سنفترض mp4 كبداية
-            player.play().catch(function(e) {
-                useFallback(url);
+        if (Hls.isSupported()) {
+            const hls = new Hls();
+            hls.loadSource(source);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                const player = new Plyr(video, defaultOptions);
             });
-        } catch (e) {
-            useFallback(url);
+        } 
+        // للمتصفحات التي تدعم HLS داخلياً مثل Safari
+        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = source;
+            const player = new Plyr(video, defaultOptions);
         }
-
-        // في حال حدوث خطأ بعد البدء
-        player.on('error', function() {
-            useFallback(url);
-        });
-    }
-
-    function useFallback(url) {
-        var msg = document.getElementById('fallback-msg');
-        msg.style.display = "block";
-        msg.innerText = "تم تفعيل الوضع المتوافق لتشغيل الرابط...";
-        
-        // تعطيل المشغل المعقد واستخدام مشغل المتصفح الخام
-        player.dispose();
-        var box = document.querySelector('.video-box');
-        box.innerHTML = `<video controls autoplay style="width:100%"><source src="${url}" type="video/mp4"><source src="${url}" type="video/x-msvideo">متصفحك لا يدعم هذا الرابط.</video>`;
-    }
+    });
 </script>
 
 </body>
