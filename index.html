@@ -71,7 +71,7 @@
             display: none;
         }
 
-        video, #yt-player { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; border: none; }
+        video, #yt-player { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; position: absolute; top:0; left:0; border:none; }
 
         .tv-controls {
             display: flex;
@@ -287,10 +287,7 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-
-    // متغيرات يوتيوب
-    let ytPlayer;
-    let currentMode = 'native';
+    let ytPlayer = null; // متغير لمشغل يوتيوب
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -311,30 +308,35 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // تجهيز API يوتيوب
+    // دالة لاستخراج ID اليوتيوب
+    function getYTId(url) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    // إعداد مشغل يوتيوب عند جاهزية المكتبة
     function onYouTubeIframeAPIReady() {
         ytPlayer = new YT.Player('yt-player', {
-            height: '100%', width: '100%',
-            playerVars: { 'autoplay': 0, 'controls': 1, 'rel': 0, 'modestbranding': 1, 'playsinline': 1 },
-            events: { 'onStateChange': onYTStateChange }
+            height: '100%',
+            width: '100%',
+            playerVars: { 'autoplay': 0, 'controls': 1, 'modestbranding': 1, 'playsinline': 1 },
+            events: {
+                'onStateChange': onPlayerStateChange
+            }
         });
     }
 
-    function onYTStateChange(event) {
+    function onPlayerStateChange(event) {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             if (globalAdminPresent && !isAdmin) return;
-            if (event.data == YT.PlayerState.PLAYING) {
-                syncRef.update({ isPlaying: true, currentTime: ytPlayer.getCurrentTime(), lastUpdated: Date.now() - (ytPlayer.getCurrentTime() * 1000) });
-            } else if (event.data == YT.PlayerState.PAUSED) {
-                syncRef.update({ isPlaying: false, currentTime: ytPlayer.getCurrentTime() });
-            }
+            const isPlaying = (event.data == YT.PlayerState.PLAYING);
+            syncRef.update({ 
+                isPlaying: isPlaying, 
+                currentTime: ytPlayer.getCurrentTime(),
+                lastUpdated: Date.now() - (ytPlayer.getCurrentTime() * 1000) 
+            });
         }
-    }
-
-    function getYTID(url) {
-        const reg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-        const match = url.match(reg);
-        return (match && match[2].length === 11) ? match[2] : null;
     }
 
     function handlePowerClick() {
@@ -358,9 +360,9 @@
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
-            document.getElementById('yt-player').style.display = 'none';
+            if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
             video.pause();
-            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
         }
@@ -411,6 +413,7 @@
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -465,86 +468,136 @@
         }
     }
 
-    video.onended = () => { if (!isRemoteUpdate && isPoweredOn) syncRef.update({ isPlaying: false, currentTime: 0, url: null }); };
+    video.onended = () => {
+        if (!isRemoteUpdate && isPoweredOn) {
+            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
+        }
+    };
 
     video.onpause = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted && currentMode === 'native') {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
     };
 
     video.onplay = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted && currentMode === 'native') {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ isPlaying: true, currentTime: video.currentTime, lastUpdated: Date.now() - (video.currentTime * 1000) });
+            syncRef.update({ 
+                isPlaying: true, 
+                currentTime: video.currentTime,
+                lastUpdated: Date.now() - (video.currentTime * 1000) 
+            });
         }
     };
 
     function handleSyncUpdate(data) {
         if (!data) return;
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
+
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
+            applyPowerState(data.tvPower);
+        }
+
         globalAdminPresent = data.adminPresent || false;
         if (!isPoweredOn) return;
 
         if (!data.url) {
-            video.style.display = 'none'; video.pause();
-            document.getElementById('yt-player').style.display = 'none';
-            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            video.style.display = 'none'; 
+            if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
+            video.pause();
+            if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             toggleStatic(true); return;
         }
         
         isRemoteUpdate = true;
-        const ytID = getYTID(data.url);
+        toggleStatic(false); 
         
-        if (ytID) {
-            currentMode = 'youtube';
-            video.style.display = 'none'; video.pause();
+        const ytId = getYTId(data.url);
+
+        if (ytId) {
+            // تشغيل يوتيوب
+            video.style.display = 'none';
+            video.pause();
             document.getElementById('yt-player').style.display = 'block';
-            toggleStatic(false);
-            if (ytPlayer && ytPlayer.loadVideoById) {
-                if (ytPlayer.getVideoData && ytPlayer.getVideoData().video_id !== ytID) ytPlayer.loadVideoById(ytID, data.currentTime || 0);
+            
+            if (ytPlayer && ytPlayer.getVideoData && ytPlayer.getVideoData().video_id !== ytId) {
+                ytPlayer.loadVideoById(ytId, data.currentTime || 0);
+            }
+
+            let targetTime = data.currentTime;
+            if (data.isPlaying && data.lastUpdated) {
+                targetTime = (Date.now() - data.lastUpdated) / 1000;
+            }
+
+            if (data.isPlaying) {
+                ytPlayer.playVideo();
+            } else {
+                ytPlayer.pauseVideo();
+            }
+
+            if (ytPlayer.getCurrentTime && Math.abs(ytPlayer.getCurrentTime() - targetTime) > 2) {
+                ytPlayer.seekTo(targetTime);
             }
         } else {
-            currentMode = 'native';
-            document.getElementById('yt-player').style.display = 'none';
-            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            // تشغيل فيديو عادي
+            if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
+            if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             video.style.display = 'block'; 
-            toggleStatic(false); 
-            if (!video.src.includes(data.url)) loadVideo(data.url);
-        }
 
-        let targetTime = data.currentTime;
-        if (data.isPlaying && data.lastUpdated) {
-            const elapsed = (Date.now() - data.lastUpdated) / 1000;
-            targetTime = elapsed > 0 ? elapsed : data.currentTime;
-        }
+            if (!video.src.includes(data.url)) {
+                loadVideo(data.url);
+            }
 
-        if (currentMode === 'native') {
-            if (data.isPlaying) { video.play().catch(() => { video.muted = true; video.play(); }); } else { video.pause(); }
+            let targetTime = data.currentTime;
+            if (data.isPlaying && data.lastUpdated) {
+                const elapsed = (Date.now() - data.lastUpdated) / 1000;
+                targetTime = elapsed > 0 ? elapsed : data.currentTime;
+            }
+
+            if (data.isPlaying) { 
+                video.play().catch(() => { video.muted = true; video.play(); }); 
+            } else { 
+                video.pause(); 
+            }
+
             if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
-        } else if (currentMode === 'youtube' && ytPlayer && ytPlayer.seekTo) {
-            if (data.isPlaying) ytPlayer.playVideo(); else ytPlayer.pauseVideo();
-            if (Math.abs(ytPlayer.getCurrentTime() - targetTime) > 2) ytPlayer.seekTo(targetTime, true);
         }
+        
         setTimeout(() => { isRemoteUpdate = false; }, 500);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
-            isAdmin = true; userHasInteracted = true;
+            isAdmin = true;
+            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             syncRef.update({ adminPresent: true });
 
             setInterval(() => {
-                if (isPoweredOn && !isRemoteUpdate && isAdmin) {
-                    let curTime = currentMode === 'native' ? video.currentTime : (ytPlayer && ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0);
-                    let isPlaying = currentMode === 'native' ? !video.paused : (ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() === 1 : false);
-                    if (isPlaying) syncRef.update({ currentTime: curTime, lastUpdated: Date.now() - (curTime * 1000), adminPresent: true });
+                if (isAdmin && isPoweredOn && !isRemoteUpdate) {
+                    let curr = 0, playing = false;
+                    if (video.style.display !== 'none') {
+                        curr = video.currentTime;
+                        playing = !video.paused;
+                    } else if (ytPlayer && ytPlayer.getCurrentTime) {
+                        curr = ytPlayer.getCurrentTime();
+                        playing = (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
+                    }
+                    if (playing) {
+                        syncRef.update({ 
+                            currentTime: curr, 
+                            lastUpdated: Date.now() - (curr * 1000),
+                            adminPresent: true 
+                        });
+                    }
                 }
             }, 5000);
-            window.addEventListener('beforeunload', () => { syncRef.update({ adminPresent: false }); });
+
+            window.addEventListener('beforeunload', () => {
+                syncRef.update({ adminPresent: false });
+            });
         }
     });
 
@@ -554,8 +607,14 @@
 
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
-        if (val.length > 5) {
-            syncRef.update({ url: val, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
+        if (val.includes('http')) {
+            syncRef.update({ 
+                url: val, 
+                currentTime: 0, 
+                isPlaying: true, 
+                adminPresent: isAdmin,
+                lastUpdated: Date.now() 
+            });
             e.target.value = "";
         }
     });
@@ -566,12 +625,17 @@
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } else { video.src = url; }
+            if (Hls.isSupported()) { 
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
+            } else { video.src = url; }
         } else { video.src = url; }
     }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
-    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
+    function adminLogout() { 
+        syncRef.update({ adminPresent: false });
+        auth.signOut().then(() => location.reload()); 
+    }
 </script>
 </body>
 </html>
