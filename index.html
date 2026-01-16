@@ -2,36 +2,44 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مستقبل البث المباشر</title>
+    <title>TFRJ - Receiver</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
-        .wrapper {
-            position: absolute;
-            top: 0; left: 0; bottom: 0; right: 0;
-            display: flex; flex-direction: column;
-        }
-        .header { background: #1a1a1a; color: white; text-align: center; padding: 10px; font-size: 18px; }
-        
-        /* ضبط الحاوية لتملأ الشاشة */
-        #cast-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; overflow: hidden; }
+        #viewer { width: 100%; height: 100vh; border: none; }
     </style>
 </head>
 <body>
 
-<div class="wrapper">
-    <div class="header">واجهة البث المباشر - TFRJ</div>
+<div id="container"></div>
+
+<script>
+    // الرابط الذي تريد جلب محتواه
+    const targetUrl = 'https://cast2tv.app';
     
-    <object id="cast-frame" data="https://cast2tv.app/" type="text/html">
-        <p>للأسف متصفحك يمنع العرض المباشر. 
-           <a href="https://cast2tv.app/" style="color: yellow;">اضغط هنا للفتح في صفحة مستقلة</a>
-        </p>
-    </object>
-</div>
+    // استخدام بروكسي لتجاوز قيود المتصفح
+    fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`)
+    .then(response => {
+        if (response.ok) return response.json();
+        throw new Error('Network error');
+    })
+    .then(data => {
+        const container = document.getElementById('container');
+        // إنشاء إطار وهمي وحقن المحتوى فيه
+        const iframe = document.createElement('iframe');
+        iframe.id = 'viewer';
+        container.appendChild(iframe);
+        
+        const doc = iframe.contentWindow.document;
+        doc.open();
+        // إضافة وسم base لضمان تحميل الصور والسكربتات من الموقع الأصلي
+        doc.write(`<base href="${targetUrl}/">` + data.contents);
+        doc.close();
+    })
+    .catch(err => {
+        console.error('فشل جلب الصفحة:', err);
+        container.innerHTML = '<h2 style="color:white; text-align:center;">خطأ في الاتصال، حاول تحديث الصفحة</h2>';
+    });
+</script>
 
 </body>
 </html>
