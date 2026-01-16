@@ -3,26 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Cast Pro | Receiver</title>
-    
+    <title>Receiver Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer@latest/dist/DPlayer.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
-        #video-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-        video { width: 100%; height: 100%; }
-        #overlay { position: absolute; top: 20px; right: 20px; color: white; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; font-family: sans-serif; pointer-events: none; }
+        body, html { margin: 0; padding: 0; background: #000; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        #dplayer { width: 100%; height: 100%; }
+        #status { position: absolute; top: 10px; right: 10px; color: white; background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 20px; font-family: sans-serif; z-index: 99; font-size: 12px; }
     </style>
 </head>
 <body>
-
-    <div id="overlay">بانتظار الرابط...</div>
-    <div id="video-container">
-        <video id="video" controls autoplay playsinline></video>
-    </div>
+    <div id="status">بانتظار الإشارة...</div>
+    <div id="dplayer"></div>
 
     <script>
         // إعدادات Firebase الخاصة بك
@@ -36,46 +30,28 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const video = document.getElementById('video');
-        const overlay = document.getElementById('overlay');
+        
+        let dp = new DPlayer({
+            container: document.getElementById('dplayer'),
+            live: true,
+            autoplay: true,
+            video: { url: '', type: 'hls' }
+        });
 
-        // تهيئة المشغل
-        async function initPlayer(url) {
-            const player = new shaka.Player(video);
-            
-            // إضافة إعدادات لتخطي بعض قيود CORS إن أمكن برمجياً
-            player.configure({
-                streaming: {
-                    lowLatencyMode: true,
-                    jumpLargeGaps: true
-                }
-            });
-
-            try {
-                await player.load(url);
-                overlay.innerText = "جاري التشغيل...";
-            } catch (e) {
-                console.error('Error loading:', e);
-                // محاولة أخيرة لو فشل المشغل المتقدم (العودة للمشغل العادي)
-                video.src = url;
-            }
-        }
-
-        // الاستماع للتغييرات في Firebase
+        // الاستماع للرابط من Firebase
         db.ref('videoSync').on('value', (snapshot) => {
             const data = snapshot.val();
             if (data && data.url) {
-                console.log("استلام الرابط:", data.url);
-                // استخدام الرابط مباشرة أو عبر بروكسي إذا كنت تستخدم متصفح كمبيوتر
-                initPlayer(data.url);
+                document.getElementById('status').innerText = "تم استقبال البث 📡";
+                
+                // تحديث المشغل بالرابط الجديد
+                dp.switchVideo({ url: data.url, type: 'hls' });
+                dp.play();
             }
         });
 
-        // تفعيل المشغل عند أول لمسة (ضروري في آيفون وسفاري)
-        document.body.addEventListener('click', () => {
-            video.play();
-        }, { once: true });
-
+        // حل مشكلة كتم الصوت التلقائي في المتصفحات
+        document.body.onclick = () => { dp.play(); };
     </script>
 </body>
 </html>
