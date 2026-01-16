@@ -3,42 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>جاري التحويل إلى البث...</title>
-    
-    <meta http-equiv="refresh" content="0; url=https://cast2tv.app">
-    
+    <title>بث مباشر - صفحتي الخاصة</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #1a1a1a;
-            color: white;
-            text-align: center;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 2s linear infinite;
-            margin-bottom: 20px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background-color: #000; }
+        /* حاوية الموقع */
+        .container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
-    <div>
-        <div class="loader" style="margin: 0 auto 20px;"></div>
-        <p>جاري تحويلك إلى صفحة البث المباشر...</p>
-        <p><small>إذا لم يتم التحويل تلقائياً، <a href="https://cast2tv.app" style="color: #3498db;">اضغط هنا</a></small></p>
+
+    <div class="container">
+        <iframe 
+            src="https://pgg-proxy.herokuapp.com/https://cast2tv.app" 
+            sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation"
+            allowfullscreen>
+        </iframe>
     </div>
+
 </body>
 </html>
