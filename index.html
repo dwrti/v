@@ -3,46 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>محرك بحثي الخاص</title>
+    <title>مشاهدة Cast2TV</title>
     <style>
-        /* تنسيق خلفية الصفحة */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 50px;
+        body, html {
             margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden; /* لمنع ظهور شريط تمرير مزدوج */
         }
-
-        /* حاوية البحث لضبط العرض */
-        .search-wrapper {
-            width: 90%;
-            max-width: 800px;
-            text-align: center;
+        .container {
+            width: 100%;
+            height: 100vh;
         }
-
-        .header-title {
-            font-size: 2.5rem;
-            margin-bottom: 30px;
-            color: #4285F4;
-        }
-
-        /* تحسين مظهر محرك جوجل المخصص */
-        .gcse-search {
-            margin-top: 20px;
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
     </style>
 </head>
 <body>
 
-    <div class="search-wrapper">
-        <h1 class="header-title">مرحباً بك في صفحة بحثي</h1>
-        <p>اكتب ما تريد البحث عنه بالأسفل وستظهر النتائج هنا مباشرة:</p>
-
-        <script async src="https://cse.google.com/cse.js?cx=54775f94690834d5a"></script>
-        <div class="gcse-search"></div>
+    <div class="container">
+        <iframe src="https://cast2tv.io/" title="Cast2TV"></iframe>
     </div>
 
 </body>
