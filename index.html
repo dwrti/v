@@ -2,44 +2,42 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>TFRJ - Receiver</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFRJ - TV Receiver</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; overflow: hidden; }
-        #viewer { width: 100%; height: 100vh; border: none; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: sans-serif; overflow: hidden; }
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 9999; background: #000; color: white;
+        }
+        .btn {
+            background: #007bff; color: white; padding: 15px 30px;
+            border: none; border-radius: 50px; font-size: 20px; cursor: pointer;
+            text-decoration: none; box-shadow: 0 4px 15px rgba(0,123,255,0.4);
+        }
+        #cast-area { width: 100%; height: 100vh; border: none; display: none; }
     </style>
 </head>
 <body>
 
-<div id="container"></div>
+    <div id="welcome" class="overlay">
+        <h2 style="margin-bottom: 20px;">جاهز للبث؟</h2>
+        <button onclick="startCast()" class="btn">تشغيل مستقبل البث الآن</button>
+        <p style="margin-top: 15px; color: #666; font-size: 12px;">سيتم فتح واجهة Cast2tv الرسمية</p>
+    </div>
 
-<script>
-    // الرابط الذي تريد جلب محتواه
-    const targetUrl = 'https://cast2tv.app';
-    
-    // استخدام بروكسي لتجاوز قيود المتصفح
-    fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`)
-    .then(response => {
-        if (response.ok) return response.json();
-        throw new Error('Network error');
-    })
-    .then(data => {
-        const container = document.getElementById('container');
-        // إنشاء إطار وهمي وحقن المحتوى فيه
-        const iframe = document.createElement('iframe');
-        iframe.id = 'viewer';
-        container.appendChild(iframe);
-        
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        // إضافة وسم base لضمان تحميل الصور والسكربتات من الموقع الأصلي
-        doc.write(`<base href="${targetUrl}/">` + data.contents);
-        doc.close();
-    })
-    .catch(err => {
-        console.error('فشل جلب الصفحة:', err);
-        container.innerHTML = '<h2 style="color:white; text-align:center;">خطأ في الاتصال، حاول تحديث الصفحة</h2>';
-    });
-</script>
+    <iframe id="cast-frame" src="" style="width:100%; height:100vh; border:none; display:none;"></iframe>
 
+    <script>
+        function startCast() {
+            // الطريقة الوحيدة لضمان عمل الـ Connect هي التوجيه المباشر
+            // مع الحفاظ على المستخدم في موقعك عبر "التاريخ"
+            window.location.replace("https://cast2tv.app");
+        }
+
+        // ملاحظة: إذا كنت تصر على الإطار، الموقع الأصلي هو من يرفض الاستجابة.
+        // الـ Redirect (التوجيه) هو الحل الوحيد الذي يجعل "الربط مع الجوال" يعمل.
+    </script>
 </body>
 </html>
