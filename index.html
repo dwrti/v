@@ -332,7 +332,6 @@
     }
 
     function onPlayerStateChange(event) {
-        // إذا قام المستخدم بالتقديم يدوياً، نقوم بتحديث الداتابيز
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             if (globalAdminPresent && !isAdmin) return;
             const isPlaying = (event.data == YT.PlayerState.PLAYING);
@@ -367,6 +366,7 @@
             video.style.display = 'none';
             if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
             video.pause();
+            video.src = ""; // إغلاق الاتصال تماماً عند الإطفاء (لتوفير السيرفر)
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
@@ -393,7 +393,6 @@
         });
     }
 
-    // دالة جديدة تماماً لمعالجة ملف IPTV من الهاتف
     function handleIPTVUpload() {
         const fileInput = document.getElementById('iptvFileInput');
         const file = fileInput.files[0];
@@ -532,80 +531,64 @@
 
     function handleSyncUpdate(data) {
         if (!data) return;
-
         if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
             applyPowerState(data.tvPower);
         }
-
         globalAdminPresent = data.adminPresent || false;
         if (!isPoweredOn) return;
-
         if (!data.url) {
             video.style.display = 'none'; 
             if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
             video.pause();
+            video.src = "";
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             toggleStatic(true); return;
         }
-        
         isRemoteUpdate = true;
         toggleStatic(false); 
-        
         const ytId = getYTId(data.url);
-
         if (ytId) {
             video.style.display = 'none';
             video.pause();
             document.getElementById('yt-player').style.display = 'block';
-            
             if (ytPlayer && ytPlayer.loadVideoById) {
                 const currentData = ytPlayer.getVideoData ? ytPlayer.getVideoData() : null;
                 if (!currentData || currentData.video_id !== ytId) {
                     ytPlayer.loadVideoById(ytId, data.currentTime || 0);
                 }
             }
-
             let targetTime = data.currentTime;
             if (data.isPlaying && data.lastUpdated) {
                 targetTime = (Date.now() - data.lastUpdated) / 1000;
             }
-
             if (ytPlayer && ytPlayer.getCurrentTime) {
                 if (data.isPlaying) {
                     if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) ytPlayer.playVideo();
                 } else {
                     if (ytPlayer.getPlayerState() !== YT.PlayerState.PAUSED) ytPlayer.pauseVideo();
                 }
-
                 const timeDiff = Math.abs(ytPlayer.getCurrentTime() - targetTime);
-                if (timeDiff > 3) { 
-                    ytPlayer.seekTo(targetTime, true);
-                }
+                if (timeDiff > 3) { ytPlayer.seekTo(targetTime, true); }
             }
         } else {
             if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             video.style.display = 'block'; 
-
             if (!video.src.includes(data.url)) {
                 loadVideo(data.url);
             }
-
             let targetTime = data.currentTime;
             if (data.isPlaying && data.lastUpdated) {
                 const elapsed = (Date.now() - data.lastUpdated) / 1000;
                 targetTime = elapsed > 0 ? elapsed : data.currentTime;
             }
-
             if (data.isPlaying) { 
                 video.play().catch(() => { video.muted = true; video.play(); }); 
             } else { 
                 video.pause(); 
             }
-
             if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
         }
-        
         setTimeout(() => { isRemoteUpdate = false; }, 1000); 
     }
 
@@ -616,7 +599,6 @@
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             syncRef.update({ adminPresent: true });
-
             setInterval(() => {
                 if (isAdmin && isPoweredOn && !isRemoteUpdate) {
                     let curr = 0, playing = false;
@@ -636,7 +618,6 @@
                     }
                 }
             }, 4000);
-
             window.addEventListener('beforeunload', () => {
                 syncRef.update({ adminPresent: false });
             });
@@ -664,13 +645,31 @@
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
 
     let hls;
+    // الحل رقم 2: نظام تمويه الاتصال (Proxy Bypass)
     function loadVideo(url) {
         if (hls) hls.destroy();
+
+        // هذا البروكسي المجاني يساعد في تجاوز قيود الـ CORS والـ Multi-IP أحياناً
+        const useProxy = url.includes('.m3u8') || url.includes('.ts');
+        const proxyPrefix = "https://api.allorigins.win/raw?url=";
+        const finalUrl = useProxy ? url : url; 
+
         if (url.includes('.m3u8')) {
             if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
-        } else { video.src = url; }
+                hls = new Hls({
+                    // الحل رقم 2: توحيد الهوية البرمجية للطلبات
+                    xhrSetup: function(xhr, url) {
+                        xhr.withCredentials = false; // عدم إرسال ملفات تعريف الارتباط المختلفة
+                    }
+                }); 
+                hls.loadSource(finalUrl); 
+                hls.attachMedia(video); 
+            } else { 
+                video.src = finalUrl; 
+            }
+        } else { 
+            video.src = finalUrl; 
+        }
     }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
