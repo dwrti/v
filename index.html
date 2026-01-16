@@ -3,135 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل IPTV الشامل</title>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <title>مشغل الفيديو الذكي</title>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <style>
-        :root { --primary-color: #007bff; --success-color: #28a745; --bg-dark: #121212; --panel-dark: #1f1f1f; }
-        body { background-color: var(--bg-dark); color: white; font-family: system-ui, -apple-system, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        header { background: var(--panel-dark); padding: 10px 15px; border-bottom: 2px solid #333; }
-        .controls-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: center; }
-        
-        input[type="text"] { flex: 1; min-width: 200px; padding: 10px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
-        input[type="text"]:focus { border-color: var(--primary-color); }
-
-        .btn { padding: 10px 18px; border-radius: 5px; cursor: pointer; border: none; font-weight: bold; font-size: 14px; transition: 0.2s; color: white; }
-        .btn-play { background: var(--primary-color); }
-        .btn-upload { background: var(--success-color); }
-        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
-        #fileInput { display: none; }
-
-        .main-container { display: flex; flex: 1; overflow: hidden; }
-        .video-section { flex: 1; background: #000; display: flex; align-items: center; }
-        video { width: 100%; height: 100%; object-fit: contain; }
-
-        .playlist { width: 280px; background: var(--panel-dark); overflow-y: auto; border-left: 1px solid #333; }
-        .channel-item { padding: 12px 15px; border-bottom: 1px solid #2a2a2a; cursor: pointer; font-size: 14px; }
-        .channel-item:hover { background: #333; }
-        .channel-item.active { background: var(--primary-color); border-right: 4px solid #fff; }
-
-        @media (max-width: 768px) {
-            .main-container { flex-direction: column; }
-            .playlist { width: 100%; height: 35%; order: 2; border-left: none; border-top: 1px solid #333; }
-            input[type="text"] { width: 100%; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+        .input-section {
+            margin-bottom: 20px;
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background: #404040;
+            color: white;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #00b3ff;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:active {
+            background-color: #0081b8;
+        }
+        .video-wrapper {
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            background: black;
+        }
+        .info {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #bbb;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-<header>
-    <div class="controls-row">
-        <input type="text" id="directUrl" placeholder="أدخل أو الصق رابط البث (m3u8)...">
-        <button class="btn btn-play" onclick="playDirectUrl()">تشغيل الرابط</button>
-        
-        <label for="fileInput" class="btn btn-upload">📁 رفع ملف M3U</label>
-        <input type="file" id="fileInput" accept=".m3u,.m3u8">
+<div class="container">
+    <div class="input-section">
+        <h3>لصق رابط الفيديو</h3>
+        <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو هنا (MP4, WebM, HLS...)" />
+        <button onclick="loadVideo()">تشغيل الفيديو</button>
     </div>
-</header>
 
-<div class="main-container">
-    <div class="video-section">
-        <video id="video" controls></video>
+    <div class="video-wrapper">
+        <video id="player" playsinline controls>
+            <source src="" type="video/mp4" />
+        </video>
     </div>
-    <div class="playlist" id="playlist">
-        <div style="padding: 20px; color: #888; text-align: center;">القائمة فارغة.. ارفع ملفاً أو الصق رابطاً</div>
+
+    <div class="info">
+        يدعم روابط مباشرة وروابط YouTube و HLS.
     </div>
 </div>
 
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
 <script>
-    const video = document.getElementById('video');
-    const playlistDiv = document.getElementById('playlist');
-    const fileInput = document.getElementById('fileInput');
-    const directUrlInput = document.getElementById('directUrl');
-    let hls = new Hls();
-
-    // تشغيل رابط مباشر من الخانة
-    function playDirectUrl() {
-        const url = directUrlInput.value.trim();
-        if (url) {
-            playChannel(url, null);
-            // تصفية الاختيار من القائمة إذا كان موجوداً
-            document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
-        } else {
-            alert("الرجاء إدخال رابط أولاً");
-        }
-    }
-
-    // معالجة ملف M3U المرفوع
-    fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = e => parseM3U(e.target.result);
-        reader.readAsText(file);
+    // تهيئة المشغل
+    const player = new Plyr('#player', {
+        rtl: true,
+        tooltips: { controls: true, seek: true }
     });
 
-    function parseM3U(content) {
-        const lines = content.split('\n');
-        const channels = [];
-        let currentName = "";
-        lines.forEach(line => {
-            line = line.trim();
-            if (line.startsWith('#EXTINF:')) {
-                currentName = line.split(',')[1] || "قناة غير معروفة";
-            } else if (line.startsWith('http')) {
-                channels.push({ name: currentName, url: line });
+    function loadVideo() {
+        const url = document.getElementById('videoUrl').value.trim();
+        const videoElement = document.getElementById('player');
+
+        if (!url) {
+            alert("يرجى إدخال رابط أولاً!");
+            return;
+        }
+
+        // دعم روابط HLS (m3u8)
+        if (url.includes('.m3u8')) {
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(videoElement);
+            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                videoElement.src = url;
             }
-        });
-        renderPlaylist(channels);
-    }
-
-    function renderPlaylist(channels) {
-        playlistDiv.innerHTML = "";
-        channels.forEach((channel, index) => {
-            const item = document.createElement('div');
-            item.className = 'channel-item';
-            item.innerText = channel.name;
-            item.onclick = () => {
-                playChannel(channel.url, item);
-                directUrlInput.value = channel.url; // عرض الرابط في الخانة للتوضيح
+        } else {
+            // الروابط المباشرة العادية (MP4, etc)
+            player.source = {
+                type: 'video',
+                sources: [{ src: url }]
             };
-            playlistDiv.appendChild(item);
-            if (index === 0) playChannel(channel.url, item);
-        });
-    }
-
-    function playChannel(url, element) {
-        if (element) {
-            document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
-            element.classList.add('active');
         }
-
-        if (Hls.isSupported()) {
-            hls.destroy();
-            hls = new Hls();
-            hls.loadSource(url);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(e => console.log("Auto-play blocked")));
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = url;
-            video.play();
-        }
+        
+        player.play();
     }
 </script>
 
