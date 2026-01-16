@@ -262,13 +262,12 @@
                     <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
                     <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
                     <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
+                    
+                    <hr style="opacity: 0.1; margin: 10px 0;">
+                    <p style="font-size: 9px; color: #f1c40f;">استيراد ملف IPTV (.m3u) من الهاتف:</p>
+                    <input type="file" id="iptvFileInput" accept=".m3u,.m3u8" style="font-size: 10px; padding: 5px; background: #000;">
+                    <button onclick="handleIPTVUpload()" style="padding: 8px; font-size: 10px; background: #3498db; color: white;">جلب القنوات للرف</button>
                 </div>
-            </div>
-
-            <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                <p style="font-size: 10px; color: #aaa;">تشغيل ملف m3u/فيديو من الهاتف:</p>
-                <input type="file" id="phoneFileInput" accept=".m3u, .m3u8, video/*" style="display: none;" onchange="uploadFromPhone(this)">
-                <button onclick="document.getElementById('phoneFileInput').click()" style="padding: 8px; font-size: 10px; background: #3498db; color: white; width: 100%;">📁 اختيار ملف m3u/فيديو</button>
             </div>
 
             <div class="btn-group">
@@ -333,7 +332,6 @@
     }
 
     function onPlayerStateChange(event) {
-        // إذا قام المستخدم بالتقديم يدوياً، نقوم بتحديث الداتابيز
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             if (globalAdminPresent && !isAdmin) return;
             const isPlaying = (event.data == YT.PlayerState.PLAYING);
@@ -392,6 +390,38 @@
             document.getElementById('newTapeName').value = "";
             document.getElementById('newTapeUrl').value = "";
         });
+    }
+
+    function handleIPTVUpload() {
+        const fileInput = document.getElementById('iptvFileInput');
+        const file = fileInput.files[0];
+        if (!file) { alert("اختر ملف m3u من جوالك أولاً"); return; }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const lines = e.target.result.split('\n');
+            let channelName = "";
+            let count = 0;
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const info = line.split(',');
+                    channelName = info[info.length - 1] || "قناة غير معروفة";
+                } else if (line.startsWith('http')) {
+                    tapesRef.push({ 
+                        name: channelName || "بث مباشر", 
+                        url: line, 
+                        timestamp: Date.now() 
+                    });
+                    channelName = "";
+                    count++;
+                }
+            });
+            alert("تمت إضافة " + count + " قناة إلى الرف بنجاح!");
+            fileInput.value = "";
+        };
+        reader.readAsText(file);
     }
 
     function deleteTape(key) {
@@ -526,7 +556,6 @@
             video.pause();
             document.getElementById('yt-player').style.display = 'block';
             
-            // إصلاح التعليق عند التبديل بين الروابط
             if (ytPlayer && ytPlayer.loadVideoById) {
                 const currentData = ytPlayer.getVideoData ? ytPlayer.getVideoData() : null;
                 if (!currentData || currentData.video_id !== ytId) {
@@ -539,7 +568,6 @@
                 targetTime = (Date.now() - data.lastUpdated) / 1000;
             }
 
-            // تنفيذ المزامنة فقط إذا كان الفارق كبيراً (أكثر من 3 ثواني) لتجنب التعليق
             if (ytPlayer && ytPlayer.getCurrentTime) {
                 if (data.isPlaying) {
                     if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) ytPlayer.playVideo();
@@ -548,7 +576,7 @@
                 }
 
                 const timeDiff = Math.abs(ytPlayer.getCurrentTime() - targetTime);
-                if (timeDiff > 3) { // زيادة العتبة لـ 3 ثواني
+                if (timeDiff > 3) { 
                     ytPlayer.seekTo(targetTime, true);
                 }
             }
@@ -576,7 +604,7 @@
             if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
         }
         
-        setTimeout(() => { isRemoteUpdate = false; }, 1000); // زيادة مدة الانتظار
+        setTimeout(() => { isRemoteUpdate = false; }, 1000); 
     }
 
     auth.onAuthStateChanged(user => {
@@ -587,7 +615,6 @@
             document.getElementById('adminSection').style.display = 'block';
             syncRef.update({ adminPresent: true });
 
-            // تقليل وتيرة التحديث لـ 4 ثواني لضمان عدم التعليق عند التقديم
             setInterval(() => {
                 if (isAdmin && isPoweredOn && !isRemoteUpdate) {
                     let curr = 0, playing = false;
@@ -639,9 +666,22 @@
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
             if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
-        } else { video.src = url; }
+                // --- إضافة إعدادات التخزين المؤقت لتقليل التقطيع ---
+                hls = new Hls({
+                    maxBufferLength: 30,        // تخزين 30 ثانية
+                    maxMaxBufferLength: 60,     // أقصى حد للتخزين 60 ثانية
+                    startLevel: -1,             // اختيار أفضل جودة تلقائياً
+                    appendErrorMaxRetry: 10,    // محاولة إعادة الاتصال عند الخطأ
+                    enableWorker: true          // تشغيل المعالجة في الخلفية لتسريع الأداء
+                }); 
+                hls.loadSource(url); 
+                hls.attachMedia(video); 
+            } else { 
+                video.src = url; 
+            }
+        } else { 
+            video.src = url; 
+        }
     }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
@@ -649,24 +689,6 @@
         syncRef.update({ adminPresent: false });
         auth.signOut().then(() => location.reload()); 
     }
-
-    // الدالة الجديدة لرفع الملف من الهاتف ومزامنته
-    function uploadFromPhone(input) {
-        const file = input.files[0];
-        if (!file) return;
-        if (!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-
-        const fileURL = URL.createObjectURL(file);
-        syncRef.update({ 
-            url: fileURL, 
-            currentTime: 0, 
-            isPlaying: true, 
-            adminPresent: isAdmin,
-            lastUpdated: Date.now() 
-        });
-        alert("تم تحميل الملف بنجاح. ملاحظة: يجب أن يتوفر الملف لدى الآخرين لمشاهدته إذا كان رابطاً محلياً.");
-    }
 </script>
 </body>
 </html>
-
