@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - IPTV Edition</title>
+    <title>VHS Sync Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -112,7 +112,7 @@
             padding: 20px; 
         }
         
-        input, textarea { 
+        input { 
             width: 100%; 
             background: var(--dark-navy); 
             border: 1px solid rgba(255,255,255,0.2); 
@@ -257,16 +257,16 @@
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK OR YOUTUBE URL">
             
             <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد أو قائمة IPTV:</p>
+                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
                     <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
-                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو أو IPTV" style="font-size: 11px; padding: 8px;">
+                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
                     <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
                     
-                    <hr style="opacity:0.1; margin: 10px 0;">
-                    <p style="font-size: 9px; color: #f1c40f;">استيراد ملف M3U كامل:</p>
-                    <textarea id="m3uInput" placeholder="صق محتوى ملف .m3u هنا..." style="font-size: 10px; height: 60px;"></textarea>
-                    <button onclick="importM3U()" style="padding: 5px; font-size: 9px; background: #3498db; color: white;">استيراد القنوات</button>
+                    <hr style="opacity: 0.1; margin: 10px 0;">
+                    <p style="font-size: 9px; color: #f1c40f;">استيراد ملف IPTV (.m3u) من الهاتف:</p>
+                    <input type="file" id="iptvFileInput" accept=".m3u,.m3u8" style="font-size: 10px; padding: 5px; background: #000;">
+                    <button onclick="handleIPTVUpload()" style="padding: 8px; font-size: 10px; background: #3498db; color: white;">جلب القنوات للرف</button>
                 </div>
             </div>
 
@@ -277,7 +277,7 @@
         </div>
     </div>
 
-    <div class="vhs-library-title">اختر شريطاً أو قناة:</div>
+    <div class="vhs-library-title">اختر شريطاً للتشغيل:</div>
     <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
@@ -292,7 +292,7 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-    let ytPlayer = null;
+    let ytPlayer = null; 
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -314,7 +314,7 @@
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
     function getYTId(url) {
-        if(!url) return null;
+        if (!url) return null;
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
         const match = url.match(regExp);
         return (match && match[2].length === 11) ? match[2] : null;
@@ -324,12 +324,15 @@
         ytPlayer = new YT.Player('yt-player', {
             height: '100%',
             width: '100%',
-            playerVars: { 'autoplay': 0, 'controls': 1, 'modestbranding': 1, 'playsinline': 1 },
-            events: { 'onStateChange': onPlayerStateChange }
+            playerVars: { 'autoplay': 0, 'controls': 1, 'modestbranding': 1, 'playsinline': 1, 'rel': 0 },
+            events: {
+                'onStateChange': onPlayerStateChange
+            }
         });
     }
 
     function onPlayerStateChange(event) {
+        // إذا قام المستخدم بالتقديم يدوياً، نقوم بتحديث الداتابيز
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             if (globalAdminPresent && !isAdmin) return;
             const isPlaying = (event.data == YT.PlayerState.PLAYING);
@@ -339,25 +342,6 @@
                 lastUpdated: Date.now() - (ytPlayer.getCurrentTime() * 1000) 
             });
         }
-    }
-
-    // دالة استيراد IPTV M3U
-    function importM3U() {
-        const content = document.getElementById('m3uInput').value;
-        if(!content) return;
-        const lines = content.split('\n');
-        let currentName = "";
-        
-        lines.forEach(line => {
-            if(line.startsWith('#EXTINF:')) {
-                currentName = line.split(',')[1] || "قناة غير مسمى";
-            } else if(line.startsWith('http')) {
-                tapesRef.push({ name: currentName.trim(), url: line.trim(), timestamp: Date.now() });
-                currentName = "";
-            }
-        });
-        document.getElementById('m3uInput').value = "";
-        alert("تم استيراد القنوات بنجاح إلى الرف!");
     }
 
     function handlePowerClick() {
@@ -409,6 +393,39 @@
         });
     }
 
+    // دالة جديدة تماماً لمعالجة ملف IPTV من الهاتف
+    function handleIPTVUpload() {
+        const fileInput = document.getElementById('iptvFileInput');
+        const file = fileInput.files[0];
+        if (!file) { alert("اختر ملف m3u من جوالك أولاً"); return; }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const lines = e.target.result.split('\n');
+            let channelName = "";
+            let count = 0;
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const info = line.split(',');
+                    channelName = info[info.length - 1] || "قناة غير معروفة";
+                } else if (line.startsWith('http')) {
+                    tapesRef.push({ 
+                        name: channelName || "بث مباشر", 
+                        url: line, 
+                        timestamp: Date.now() 
+                    });
+                    channelName = "";
+                    count++;
+                }
+            });
+            alert("تمت إضافة " + count + " قناة إلى الرف بنجاح!");
+            fileInput.value = "";
+        };
+        reader.readAsText(file);
+    }
+
     function deleteTape(key) {
         if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
     }
@@ -434,6 +451,7 @@
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -553,10 +571,14 @@
             }
 
             if (ytPlayer && ytPlayer.getCurrentTime) {
-                if (data.isPlaying) { if (ytPlayer.getPlayerState() !== 1) ytPlayer.playVideo(); } 
-                else { if (ytPlayer.getPlayerState() !== 2) ytPlayer.pauseVideo(); }
+                if (data.isPlaying) {
+                    if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) ytPlayer.playVideo();
+                } else {
+                    if (ytPlayer.getPlayerState() !== YT.PlayerState.PAUSED) ytPlayer.pauseVideo();
+                }
 
-                if (Math.abs(ytPlayer.getCurrentTime() - targetTime) > 3) {
+                const timeDiff = Math.abs(ytPlayer.getCurrentTime() - targetTime);
+                if (timeDiff > 3) { 
                     ytPlayer.seekTo(targetTime, true);
                 }
             }
@@ -565,7 +587,9 @@
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             video.style.display = 'block'; 
 
-            if (!video.src.includes(data.url)) { loadVideo(data.url); }
+            if (!video.src.includes(data.url)) {
+                loadVideo(data.url);
+            }
 
             let targetTime = data.currentTime;
             if (data.isPlaying && data.lastUpdated) {
@@ -573,13 +597,16 @@
                 targetTime = elapsed > 0 ? elapsed : data.currentTime;
             }
 
-            if (data.isPlaying) { video.play().catch(() => { video.muted = true; video.play(); }); } 
-            else { video.pause(); }
+            if (data.isPlaying) { 
+                video.play().catch(() => { video.muted = true; video.play(); }); 
+            } else { 
+                video.pause(); 
+            }
 
             if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
         }
         
-        setTimeout(() => { isRemoteUpdate = false; }, 1000);
+        setTimeout(() => { isRemoteUpdate = false; }, 1000); 
     }
 
     auth.onAuthStateChanged(user => {
@@ -596,9 +623,9 @@
                     if (video.style.display !== 'none') {
                         curr = video.currentTime;
                         playing = !video.paused;
-                    } else if (ytPlayer && ytPlayer.getCurrentTime) {
+                    } else if (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getPlayerState) {
                         curr = ytPlayer.getCurrentTime();
-                        playing = (ytPlayer.getPlayerState() === 1);
+                        playing = (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
                     }
                     if (playing) {
                         syncRef.update({ 
@@ -608,7 +635,7 @@
                         });
                     }
                 }
-            }, 5000);
+            }, 4000);
 
             window.addEventListener('beforeunload', () => {
                 syncRef.update({ adminPresent: false });
@@ -623,7 +650,13 @@
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.includes('http')) {
-            syncRef.update({ url: val, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
+            syncRef.update({ 
+                url: val, 
+                currentTime: 0, 
+                isPlaying: true, 
+                adminPresent: isAdmin,
+                lastUpdated: Date.now() 
+            });
             e.target.value = "";
         }
     });
