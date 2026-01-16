@@ -2,85 +2,60 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل البث المباشر المطور</title>
-    
+    <title>بث مباشر - للمشاهدين</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    
     <style>
-        body { margin: 0; background: #1a1a1a; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-        .container { width: 100%; max-width: 800px; text-align: center; background: #222; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        video { width: 100%; border-radius: 10px; background: #000; margin-bottom: 20px; }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        input[type="text"] { flex: 1; padding: 12px; border-radius: 5px; border: 1px solid #444; background: #333; color: #fff; outline: none; }
-        button { padding: 10px 20px; background: #007bff; border: none; border-radius: 5px; color: white; cursor: pointer; font-weight: bold; }
-        button:hover { background: #0056b3; }
-        .status { margin-top: 10px; color: #00ff00; font-size: 14px; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        video { width: 100%; max-width: 800px; border: 2px solid #333; border-radius: 10px; }
+        .status { margin-top: 10px; color: #00ff00; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>مشغل البث المباشر</h2>
-    
-    <div class="controls">
-        <input type="text" id="linkInput" placeholder="أدخل رابط m3u8 هنا..." value="https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8">
-        <button onclick="loadStream()">تشغيل</button>
-    </div>
-
+    <div id="status" class="status">انتظار إشارة البث...</div>
     <video id="video" controls autoplay playsinline></video>
-    <div id="status" class="status">جاهز للتشغيل</div>
-</div>
 
-<script>
-    const video = document.getElementById('video');
-    const status = document.getElementById('status');
-    const linkInput = document.getElementById('linkInput');
-    let hls = null;
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    function loadStream() {
-        const videoSrc = linkInput.value.trim();
-        
-        if (!videoSrc) {
-            alert("يرجى إدخال رابط أولاً");
-            return;
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const video = document.getElementById('video');
+        const status = document.getElementById('status');
+        let hls = null;
+
+        // مراقبة تغيير الرابط في قاعدة البيانات
+        const streamRef = ref(db, 'liveStream/url');
+        onValue(streamRef, (snapshot) => {
+            const url = snapshot.val();
+            if (url) {
+                playStream(url);
+                status.innerText = "البث المباشر متصل الآن";
+            }
+        });
+
+        function playStream(url) {
+            if (Hls.isSupported()) {
+                if (hls) hls.destroy();
+                hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+            }
         }
-
-        status.style.color = "#00ff00";
-        status.innerText = "جاري الاتصال بالرابط الجديد...";
-
-        // إذا كان هناك مشغل HLS سابق، نقوم بتدميره قبل البدء بالجديد
-        if (hls) {
-            hls.destroy();
-        }
-
-        if (Hls.isSupported()) {
-            hls = new Hls();
-            hls.loadSource(videoSrc);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                status.innerText = "تم الاتصال - البث يعمل الآن";
-                video.play();
-            });
-            hls.on(Hls.Events.ERROR, function(event, data) {
-                if (data.fatal) {
-                    status.style.color = "red";
-                    status.innerText = "فشل التحميل: الرابط غير صالح أو لا يدعم HLS.";
-                }
-            });
-        } 
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = videoSrc;
-            video.addEventListener('loadedmetadata', function() {
-                video.play();
-                status.innerText = "يعمل على متصفح Safari";
-            });
-        }
-    }
-
-    // تشغيل الرابط الافتراضي عند فتح الصفحة
-    window.onload = loadStream;
-</script>
-
+    </script>
 </body>
 </html>
