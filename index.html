@@ -2,15 +2,15 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>TFRJ - مستقبل البث</title>
+    <title>TFRJ - مستقبل البث المتطور</title>
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.2.2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; text-align: center; }
-        #setup { display: flex; flex-direction: column; align-items: center; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        #setup { display: flex; flex-direction: column; align-items: center; text-align: center; }
         #qrcode { background: white; padding: 15px; border-radius: 10px; margin: 20px; }
-        video { width: 100%; height: 100%; display: none; position: absolute; top: 0; left: 0; }
-        .status { color: #00ff00; font-family: monospace; }
+        video { width: 100%; height: 100%; display: none; background: #000; }
     </style>
 </head>
 <body>
@@ -18,30 +18,40 @@
     <div id="setup">
         <h1>TFRJ TV RECEIVER</h1>
         <div id="qrcode"></div>
-        <p>امسح الكود بجوالك للتحكم</p>
-        <div id="status" class="status">جاري الاتصال...</div>
+        <p>امسح الكود للتحكم - يدعم IPTV</p>
+        <div id="status" style="color:#0f0">جاري الاتصال...</div>
     </div>
 
     <video id="video-player" controls autoplay playsinline></video>
 
     <script>
+        const video = document.getElementById('video-player');
+        const setupUI = document.getElementById('setup');
         const channelName = 'TFRJ_' + Math.random().toString(36).substr(2, 5);
+        
         const pubnub = new PubNub({ publishKey: 'demo', subscribeKey: 'demo', userId: 'receiver' });
 
-        // توليد الـ QR بالرابط الصحيح (لاحظ حرف C الكبير في Control.html)
         const controlUrl = `https://tfrj.github.io/v/Control.html?ch=${channelName}`;
         new QRCode(document.getElementById("qrcode"), { text: controlUrl, width: 250, height: 250 });
-        document.getElementById('status').innerText = "القناة: " + channelName;
+        document.getElementById('status').innerText = "القناة جاهزة: " + channelName;
 
         pubnub.subscribe({ channels: [channelName] });
         pubnub.addListener({
             message: function(s) {
                 if (s.message.type === 'play') {
-                    document.getElementById('setup').style.display = 'none';
-                    const v = document.getElementById('video-player');
-                    v.style.display = 'block';
-                    v.src = s.message.url;
-                    v.play();
+                    const url = s.message.url;
+                    setupUI.style.display = 'none';
+                    video.style.display = 'block';
+
+                    if (Hls.isSupported() && url.includes('m3u8')) {
+                        const hls = new Hls();
+                        hls.loadSource(url);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play(); });
+                    } else {
+                        video.src = url;
+                        video.play();
+                    }
                 }
             }
         });
