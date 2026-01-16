@@ -1,43 +1,50 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>TFRJ - Full Control</title>
+    <title>TFRJ - مستقبل البث الخاص</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; overflow: hidden; }
-        iframe { width: 100%; height: 100vh; border: none; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; overflow: hidden; }
+        #video-player { width: 100vw; height: 100vh; background: #000; display: none; }
+        .setup { padding: 50px; }
+        .id-display { font-size: 24px; color: #00ff00; background: #222; padding: 10px; border-radius: 8px; display: inline-block; margin: 20px; }
     </style>
 </head>
 <body>
 
-<div id="display"></div>
+    <div id="setup-ui" class="setup">
+        <h1>مستقبل بث TFRJ</h1>
+        <p>هذا الكود خاص بصفحتك ومستقر تماماً:</p>
+        <div class="id-display" id="my-id">جاري استخراج الـ ID...</div>
+        <p>استخدم هذا الـ ID في كود المرسل لبدء البث.</p>
+    </div>
 
-<script>
-    // استخدام بروكسي يكسر حماية الـ CORS تماماً
-    const targetUrl = 'https://cast2tv.app/';
-    const proxy = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
+    <video id="video-player" autoplay controls playsinline></video>
 
-    fetch(proxy)
-    .then(r => r.text())
-    .then(html => {
-        const container = document.getElementById('display');
-        const iframe = document.createElement('iframe');
-        iframe.style.width = "100%";
-        iframe.style.height = "100vh";
-        // السماح بجميع الصلاحيات للأزرار والسكربتات
-        iframe.setAttribute('sandbox', 'allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts');
-        iframe.setAttribute('allow', 'display-capture; fullscreen; microphone; camera');
-        
-        container.appendChild(iframe);
-        
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        // حقن قاعدة البيانات الأصلية للموقع لضمان تشغيل السكربتات
-        doc.write(`<base href="${targetUrl}">` + html);
-        doc.close();
-    })
-    .catch(err => console.error("فشل الحقن:", err));
-</script>
+    <script>
+        // إنشاء اتصال Peer
+        const peer = new Peer(); 
 
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = id;
+            console.log('ID الخاص بك هو: ' + id);
+        });
+
+        // استقبال الاتصال (الفيديو)
+        peer.on('call', (call) => {
+            call.answer(); // الرد على المكالمة/البث
+            call.on('stream', (remoteStream) => {
+                const video = document.getElementById('video-player');
+                const setupUI = document.getElementById('setup-ui');
+                
+                setupUI.style.display = 'none';
+                video.style.display = 'block';
+                
+                video.srcObject = remoteStream;
+                video.play();
+            });
+        });
+    </script>
 </body>
 </html>
