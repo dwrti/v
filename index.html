@@ -246,7 +246,7 @@
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <iframe id="web-frame" allow="autoplay; fullscreen" src="about:blank"></iframe>
-            <video id="video" controls playsinline></video>
+            <video id="video" controls playsinline webkit-playsinline></video>
         </div>
         
         <div class="tv-controls">
@@ -511,7 +511,6 @@
         isRemoteUpdate = true;
         toggleStatic(false); 
 
-        // التمييز: إذا كان الرابط هو cast2tv أو موقع عام
         const isWebSite = data.url.includes('cast2tv.app') || !data.url.match(/\.(mp4|m3u8|webm|ogg|mov|m4v)$|^blob:/i);
 
         if (isWebSite) {
