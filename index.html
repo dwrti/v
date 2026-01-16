@@ -2,48 +2,72 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>TFRJ - مستقبل البث الخاص</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFRJ - نظام البث الخاص</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; overflow: hidden; }
-        #video-player { width: 100vw; height: 100vh; background: #000; display: none; }
-        .setup { padding: 50px; }
-        .id-display { font-size: 24px; color: #00ff00; background: #222; padding: 10px; border-radius: 8px; display: inline-block; margin: 20px; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
+        #setup-ui { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center; }
+        #qrcode { background: white; padding: 15px; border-radius: 10px; margin: 20px; }
+        .id-text { font-size: 1.2rem; color: #00ff00; font-family: monospace; }
+        video { width: 100%; height: 100%; display: none; background: #000; }
+        .loading-bar { width: 200px; height: 4px; background: #333; margin-top: 10px; position: relative; }
+        .loading-bar::after { content: ''; position: absolute; left: 0; top: 0; height: 100%; background: #e50914; width: 50%; animation: load 1.5s infinite; }
+        @keyframes load { 0% { left: 0; width: 10%; } 50% { left: 45%; width: 50%; } 100% { left: 90%; width: 10%; } }
     </style>
 </head>
 <body>
 
-    <div id="setup-ui" class="setup">
-        <h1>مستقبل بث TFRJ</h1>
-        <p>هذا الكود خاص بصفحتك ومستقر تماماً:</p>
-        <div class="id-display" id="my-id">جاري استخراج الـ ID...</div>
-        <p>استخدم هذا الـ ID في كود المرسل لبدء البث.</p>
+    <div id="setup-ui">
+        <h1>TFRJ TV RECEIVER</h1>
+        <p>امسح الكود بجوالك للتحكم في البث</p>
+        <div id="qrcode"></div>
+        <div class="id-text" id="my-id">جاري الاتصال بالسيرفر...</div>
+        <div class="loading-bar"></div>
     </div>
 
-    <video id="video-player" autoplay controls playsinline></video>
+    <video id="video-player" controls playsinline></video>
 
     <script>
-        // إنشاء اتصال Peer
-        const peer = new Peer(); 
+        const video = document.getElementById('video-player');
+        const setupUI = document.getElementById('setup-ui');
+        const peer = new Peer(); // إنشاء اتصال جديد
 
         peer.on('open', (id) => {
-            document.getElementById('my-id').innerText = id;
-            console.log('ID الخاص بك هو: ' + id);
+            document.getElementById('my-id').innerText = "ID: " + id;
+            
+            // توليد رابط التحكم وإظهاره كـ QR Code
+            // ملاحظة: استبدل الرابط أدناه برابط صفحة التحكم الخاصة بك لاحقاً
+            const controlUrl = `https://tfrj.github.io/v/control.html?id=${id}`;
+            new QRCode(document.getElementById("qrcode"), {
+                text: controlUrl,
+                width: 200,
+                height: 200
+            });
+            console.log("رابط التحكم:", controlUrl);
         });
 
-        // استقبال الاتصال (الفيديو)
-        peer.on('call', (call) => {
-            call.answer(); // الرد على المكالمة/البث
-            call.on('stream', (remoteStream) => {
-                const video = document.getElementById('video-player');
-                const setupUI = document.getElementById('setup-ui');
-                
-                setupUI.style.display = 'none';
-                video.style.display = 'block';
-                
-                video.srcObject = remoteStream;
-                video.play();
+        // استقبال الأوامر من الجوال
+        peer.on('connection', (conn) => {
+            conn.on('data', (data) => {
+                if (data.type === 'play') {
+                    setupUI.style.display = 'none';
+                    video.style.display = 'block';
+                    video.src = data.url;
+                    video.play();
+                }
+                if (data.type === 'stop') {
+                    video.pause();
+                    video.style.display = 'none';
+                    setupUI.style.display = 'flex';
+                }
             });
+        });
+
+        // في حال حدوث خطأ
+        peer.on('error', (err) => {
+            alert("حدث خطأ في الاتصال: " + err.type);
         });
     </script>
 </body>
