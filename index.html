@@ -3,43 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الروابط المباشر</title>
+    <title>مشغل الفيديو الخارق</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
     <style>
-        body { font-family: sans-serif; background-color: #121212; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .input-section { width: 100%; max-width: 800px; margin-bottom: 20px; display: flex; gap: 10px; }
-        input[type="text"] { flex: 1; padding: 12px; border-radius: 5px; border: none; outline: none; font-size: 16px; }
-        button { padding: 12px 25px; background-color: #ff0000; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #cc0000; }
-        #dplayer { width: 100%; max-width: 800px; height: 450px; border-radius: 10px; overflow: hidden; background: #000; }
+        body { font-family: sans-serif; background-color: #0b0e14; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .input-section { width: 100%; max-width: 800px; margin-bottom: 20px; display: flex; gap: 5px; }
+        input[type="text"] { flex: 1; padding: 15px; border-radius: 8px; border: 1px solid #333; background: #1a1f29; color: white; font-size: 14px; }
+        button { padding: 0 25px; background-color: #e50914; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        #dplayer { width: 100%; max-width: 800px; height: 450px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
     </style>
 </head>
 <body>
 
-    <h2>مشغل الفيديو السريع</h2>
+    <h2 style="color: #e50914;">المشغل الذكي</h2>
 
     <div class="input-section">
-        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو هنا (MP4, MKV, M3U8...)" />
+        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو أو رابط البث المباشر هنا..." />
         <button onclick="playVideo()">تشغيل</button>
     </div>
 
     <div id="dplayer"></div>
 
     <script>
-        // إعداد المشغل في البداية بشكل فارغ
+        // إعداد المشغل
         let dp = new DPlayer({
             container: document.getElementById('dplayer'),
-            video: { url: '' }
+            video: { url: '', type: 'auto' },
+            theme: '#e50914'
         });
 
         function playVideo() {
-            const url = document.getElementById('videoUrl').value;
-            if (!url) {
-                alert("من فضلك الصق الرابط أولاً");
-                return;
-            }
+            const url = document.getElementById('videoUrl').value.trim();
+            if (!url) return alert("ضع الرابط أولاً");
 
-            // إعادة بناء المشغل بالرابط الجديد
+            // تنظيف المشغل وتشغيل الرابط الجديد بدعم HLS
             dp.switchVideo({
                 url: url,
                 type: 'auto'
@@ -48,6 +47,5 @@
             dp.play();
         }
     </script>
-
 </body>
 </html>
