@@ -2,30 +2,27 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>المستقبل الذكي | تشغيل IPTV الأكيد</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Cast Pro | Receiver</title>
+    
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     
-    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
-    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
-        .video-js { width: 100% !important; height: 100% !important; }
-        #waiting { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; text-align: center; font-family: sans-serif; z-index: 10;
-        }
+        #video-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        video { width: 100%; height: 100%; }
+        #overlay { position: absolute; top: 20px; right: 20px; color: white; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; font-family: sans-serif; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <div id="waiting">
-        <h2>Web Cast Pro</h2>
-        <p>بانتظار الرابط... (يدعم سبيستون والقنوات المحمية)</p>
+    <div id="overlay">بانتظار الرابط...</div>
+    <div id="video-container">
+        <video id="video" controls autoplay playsinline></video>
     </div>
-
-    <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" crossorigin="anonymous"></video>
 
     <script>
         // إعدادات Firebase الخاصة بك
@@ -38,34 +35,47 @@
         };
 
         firebase.initializeApp(firebaseConfig);
-        const player = videojs('my-video');
+        const db = firebase.database();
+        const video = document.getElementById('video');
+        const overlay = document.getElementById('overlay');
 
-        // دالة سحرية لتجاوز حماية CORS
-        function getProxyUrl(url) {
-            // نستخدم بروكسي مفتوح المصدر لتخطي حماية سيرفرات البث
-            return "https://cors-anywhere.herokuapp.com/" + url;
+        // تهيئة المشغل
+        async function initPlayer(url) {
+            const player = new shaka.Player(video);
+            
+            // إضافة إعدادات لتخطي بعض قيود CORS إن أمكن برمجياً
+            player.configure({
+                streaming: {
+                    lowLatencyMode: true,
+                    jumpLargeGaps: true
+                }
+            });
+
+            try {
+                await player.load(url);
+                overlay.innerText = "جاري التشغيل...";
+            } catch (e) {
+                console.error('Error loading:', e);
+                // محاولة أخيرة لو فشل المشغل المتقدم (العودة للمشغل العادي)
+                video.src = url;
+            }
         }
 
-        firebase.database().ref('videoSync').on('value', (snapshot) => {
+        // الاستماع للتغييرات في Firebase
+        db.ref('videoSync').on('value', (snapshot) => {
             const data = snapshot.val();
             if (data && data.url) {
-                document.getElementById('waiting').style.display = 'none';
-                
-                let finalUrl = data.url;
-                
-                // تشغيل الرابط مباشرة مع محاولة تخطي القيود
-                player.src({
-                    src: finalUrl,
-                    type: 'application/x-mpegURL'
-                });
-
-                player.ready(function() {
-                    player.play().catch(function(error) {
-                        console.log("التشغيل التلقائي محجوب، يرجى الضغط يدوياً");
-                    });
-                });
+                console.log("استلام الرابط:", data.url);
+                // استخدام الرابط مباشرة أو عبر بروكسي إذا كنت تستخدم متصفح كمبيوتر
+                initPlayer(data.url);
             }
         });
+
+        // تفعيل المشغل عند أول لمسة (ضروري في آيفون وسفاري)
+        document.body.addEventListener('click', () => {
+            video.play();
+        }, { once: true });
+
     </script>
 </body>
 </html>
