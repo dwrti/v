@@ -121,7 +121,6 @@
         var hls = new Hls();
         var isAdmin = false;
 
-        // وظيفة تشغيل الفيديو الذكية (HLS + MP4)
         function playMedia(url) {
             if (!url) return;
             if (Hls.isSupported() && (url.includes('m3u8') || !url.endsWith('.mp4'))) {
@@ -142,7 +141,6 @@
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
             if (data && data.url) {
-                // تحديث الرابط إذا كان مختلفاً
                 if (videoElement.dataset.currentSrc !== data.url) {
                     videoElement.dataset.currentSrc = data.url;
                     playMedia(data.url);
@@ -150,11 +148,16 @@
                 
                 // المزامنة للمشاهدين فقط
                 if (!isAdmin) {
-                    if (Math.abs(videoElement.currentTime - data.currentTime) > 1.5) {
+                    // مزامنة الوقت إذا فرق أكثر من ثانيتين
+                    if (Math.abs(videoElement.currentTime - data.currentTime) > 2) {
                         videoElement.currentTime = data.currentTime;
                     }
-                    if (data.paused && !videoElement.paused) videoElement.pause();
-                    if (!data.paused && videoElement.paused) videoElement.play().catch(function(){});
+                    // مزامنة حالة التشغيل والإيقاف
+                    if (data.paused && !videoElement.paused) {
+                        videoElement.pause();
+                    } else if (!data.paused && videoElement.paused) {
+                        videoElement.play().catch(function(){});
+                    }
                 }
                 document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
             }
@@ -171,9 +174,17 @@
             }
         }
 
-        videoElement.onplay = broadcastStatus;
-        videoElement.onpause = broadcastStatus;
-        videoElement.onseeking = broadcastStatus;
+        // مستمعات الأحداث للآدمن لضمان اللحظية
+        videoElement.addEventListener('play', broadcastStatus);
+        videoElement.addEventListener('pause', broadcastStatus);
+        videoElement.addEventListener('seeking', broadcastStatus);
+        
+        // تحديث مستمر للوقت للآدمن (اختياري لضمان دقة التوقيت كل ثانية)
+        setInterval(function() {
+            if (isAdmin && !videoElement.paused) {
+                broadcastStatus();
+            }
+        }, 2000);
 
         // الأزرار
         document.getElementById('loginBtn').addEventListener('click', function() {
