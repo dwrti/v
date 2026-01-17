@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Puffin Player</title>
+    <title>مشغل المزامنة</title>
     
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     
     <style>
-        body { background: #1a1a1a; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .container { width: 90%; max-width: 800px; }
         .plyr { border-radius: 12px; overflow: hidden; }
     </style>
@@ -16,7 +16,9 @@
 <body>
 
 <div class="container">
-    <video id="player" playsinline controls src=""></video>
+    <video id="player" playsinline controls>
+        <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4" />
+    </video>
 </div>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
@@ -36,50 +38,36 @@
         measurementId: "G-2H4SJNLD1R"
     };
 
-    // تشغيل فايربيز
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
-    const videoElement = document.getElementById('player');
+    const video = document.getElementById('player');
     
-    // تشغيل شكل المشغل
-    const player = new Plyr(videoElement);
+    // تشغيل التصميم الجمالي
+    const player = new Plyr('#player');
 
     let isRemoteUpdate = false;
 
-    // استقبال البيانات (الرابط، الوقت، الحالة)
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
-        if (!data) return;
-
-        isRemoteUpdate = true;
-
-        // 1. تحديث الرابط إذا تغير
-        if (data.url && videoElement.src !== data.url) {
-            videoElement.src = data.url;
+        if (data) {
+            isRemoteUpdate = true;
+            if (Math.abs(video.currentTime - data.time) > 1.5) {
+                video.currentTime = data.time;
+            }
+            if (data.status === "playing" && video.paused) {
+                video.play().catch(() => {});
+            } else if (data.status === "paused" && !video.paused) {
+                video.pause();
+            }
+            setTimeout(() => { isRemoteUpdate = false; }, 500);
         }
-
-        // 2. مزامنة الوقت
-        if (Math.abs(videoElement.currentTime - data.time) > 1.5) {
-            videoElement.currentTime = data.time;
-        }
-
-        // 3. مزامنة التشغيل
-        if (data.status === "playing" && videoElement.paused) {
-            videoElement.play().catch(() => {});
-        } else if (data.status === "paused" && !videoElement.paused) {
-            videoElement.pause();
-        }
-
-        setTimeout(() => { isRemoteUpdate = false; }, 500);
     });
 
-    // إرسال التحديثات عند التحكم اليدوي
-    videoElement.onplay = () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: videoElement.currentTime }); };
-    videoElement.onpause = () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: videoElement.currentTime }); };
-    videoElement.onseeked = () => { if (!isRemoteUpdate) update(videoRef, { time: videoElement.currentTime }); };
+    video.onplay = () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: video.currentTime }); };
+    video.onpause = () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: video.currentTime }); };
+    video.onseeked = () => { if (!isRemoteUpdate) update(videoRef, { time: video.currentTime }); };
 
 </script>
-
 </body>
 </html>
