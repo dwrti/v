@@ -3,122 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Puffin Style Player</title>
+    <title>مشغل فيديو متزامن</title>
     <style>
-        /* نمط Puffin: تعتيم كامل وتركيز على المحتوى */
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #050505;
-            color: #ececec;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
+            font-family: sans-serif;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* حاوية المسرح */
-        .theater-container {
-            flex: 1;
-            display: flex;
             align-items: center;
-            justify-content: center;
-            background: radial-gradient(circle, #1a1a1a 0%, #000 100%);
-            position: relative;
+            padding: 20px;
+            background-color: #f4f4f9;
         }
-
-        .video-box {
+        .video-container {
             width: 100%;
-            max-width: 1000px;
-            box-shadow: 0 0 100px rgba(0,0,0,0.8);
-            border-bottom: 2px solid #333;
+            max-width: 600px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
-
         video {
             width: 100%;
             display: block;
-            outline: none;
         }
-
-        /* شريط التحكم السفلي بنمط Puffin العائم */
-        .puffin-controls {
-            background: #121212;
-            padding: 20px;
-            border-top: 1px solid #222;
+        .controls-area {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            align-items: center;
+            gap: 10px;
         }
-
-        .input-group {
-            display: flex;
-            width: 100%;
-            max-width: 800px;
-            background: #1e1e1e;
-            border-radius: 30px; /* زوايا دائرية جداً مثل puffin */
-            padding: 5px 15px;
-            border: 1px solid #333;
-        }
-
         input[type="text"] {
-            flex: 1;
-            background: transparent;
-            border: none;
             padding: 12px;
-            color: #fff;
-            font-size: 15px;
-            outline: none;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
         }
-
-        .send-btn {
-            background: #007bff;
+        button {
+            padding: 12px;
+            background-color: #25d366;
             color: white;
             border: none;
-            padding: 8px 20px;
-            border-radius: 20px;
+            border-radius: 5px;
+            font-size: 16px;
             cursor: pointer;
-            font-weight: bold;
-            transition: 0.3s;
         }
-
-        .send-btn:hover {
-            background: #0056b3;
-        }
-
-        /* علامة المزامنة */
-        .sync-status {
-            font-size: 11px;
-            color: #555;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
+        #status { font-size: 12px; color: #666; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <div class="theater-container">
-        <div class="video-box">
-            <video id="puffinPlayer" controls poster="https://via.placeholder.com/1920x1080/000/fff?text=Puffin+Theater+Mode">
-                Your browser does not support the video tag.
-            </video>
-        </div>
+    <div class="video-container">
+        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Waiting+for+Video">
+            Your browser does not support the video tag.
+        </video>
     </div>
 
-    <div class="puffin-controls">
-        <div class="input-group">
-            <input type="text" id="videoUrl" placeholder="أدخل الرابط للمزامنة اللحظية...">
-            <button class="send-btn" id="btnSync">تحديث</button>
-        </div>
-        <div class="sync-status">Cloud Sync Active (Firebase)</div>
+    <div class="controls-area">
+        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا...">
+        <button id="loadBtn">تحديث الفيديو للجميع</button>
+        <p id="status">المزامنة متصلة بـ Firebase...</p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
+        // إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -126,37 +77,77 @@
             projectId: "videos-5e336",
             storageBucket: "videos-5e336.firebasestorage.app",
             messagingSenderId: "300218651134",
-            appId: "1:300218651134:web:4bd24df8e555e62828f0af",
-            measurementId: "G-2H4SJNLD1R"
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
         };
 
+        // تهيئة Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const videoRef = ref(db, 'currentVideoUrl');
+        const videoRef = ref(db, 'videoState');
 
-        const player = document.getElementById('puffinPlayer');
-        const input = document.getElementById('videoUrl');
-        const btn = document.getElementById('btnSync');
+        const player = document.getElementById('myPlayer');
+        const videoUrlInput = document.getElementById('videoUrl');
+        const loadBtn = document.getElementById('loadBtn');
 
-        // استماع للتغييرات (المزامنة)
-        onValue(videoRef, (snapshot) => {
-            const url = snapshot.val();
-            if (url && url !== player.src) {
-                player.src = url;
-                player.play().catch(() => {});
-            }
-        });
+        let isUpdating = false; // لمنع حدوث حلقة تكرارية (Loop)
 
-        // إرسال الرابط الجديد للكل
-        btn.onclick = () => {
-            const val = input.value.trim();
-            if (val) {
-                set(videoRef, val).then(() => {
-                    input.value = "";
+        // 1. إرسال البيانات لقاعدة البيانات عند حدوث تغيير
+        function updateFirebase() {
+            if (isUpdating) return;
+            set(videoRef, {
+                url: player.src,
+                currentTime: player.currentTime,
+                paused: player.paused,
+                timestamp: Date.now()
+            });
+        }
+
+        // عند تغيير الرابط
+        loadBtn.onclick = () => {
+            const url = videoUrlInput.value;
+            if (url) {
+                set(videoRef, {
+                    url: url,
+                    currentTime: 0,
+                    paused: false,
+                    timestamp: Date.now()
                 });
             }
         };
-    </script>
 
+        // أحداث المشغل
+        player.onplay = updateFirebase;
+        player.onpause = updateFirebase;
+        player.onseeked = updateFirebase;
+
+        // 2. الاستماع للتغييرات من Firebase وتطبيقها عند الجميع
+        onValue(videoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            isUpdating = true; // إيقاف الإرسال مؤقتاً لتجنب التعليق
+
+            // تحديث الرابط إذا تغير
+            if (player.src !== data.url && data.url !== "") {
+                player.src = data.url;
+            }
+
+            // تحديث الوقت إذا كان الفرق أكثر من ثانية (لضمان السلاسة)
+            if (Math.abs(player.currentTime - data.currentTime) > 1.5) {
+                player.currentTime = data.currentTime;
+            }
+
+            // تشغيل أو إيقاف
+            if (data.paused && !player.paused) {
+                player.pause();
+            } else if (!data.paused && player.paused) {
+                player.play().catch(() => {
+                    console.log("التشغيل التلقائي محظور حتى يتفاعل المستخدم مع الصفحة");
+                });
+            }
+
+            isUpdating = false;
+        });
+    </script>
 </body>
 </html>
