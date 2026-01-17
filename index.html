@@ -69,30 +69,64 @@
     </div>
 
     <div class="controls-area">
-        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
+        <input type="text" id="videoUrl" placeholder="https://abra--5e4bd524.api.cosmic-crab.buzz/93743992fdffe15b7e075a2e81c5b05c5072c1bc/%D8%A7%D8%B1%D8%B4%D9%8A%D9%81%20%D9%82%D9%86%D8%A7%D8%A9%20%D8%B3%D8%A8%D9%8A%D8%B3%D8%AA%D9%88%D9%86%20%D9%85%D9%86%20%D8%B3%D9%86%D8%A9%202000%20%D8%A7%D9%84%D9%89%202001/aaalan-bokymon-algzaa-alsads-aal-kna-nyo-ty-fy.mp4?api-key=8acbcf1e-732c-4574-a3bf-27e6a85b86f1&download=true&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Njg3NTYzODYsInJhdGUiOiI1TSIsInJvbGUiOiJmcmVlIiwic2Vzc2lvbklEIjoiTVRjMk5qTXpORGMxTW54T2QzZEJUa1pzVUZORk5VUlJWbWhZVlZVMVVGTlZiRk5VVm1kNVYxWnNVMVpGUmtWU1JWRXdUVEE1V0ZacVVrbE5hazVLVTBVMVNGTlZNVWRXYTNoaFRXc3hSVlpFV2tkTk1FVTlmUFhVQTl0VjJsOURkcEh0RGEzVjJoTlM1N1lzV3Rfd0s2VW5sUGl6N2tOUyIsImRvbWFpbiI6IndlYnRvci5pbyIsImFnZW50IjoiTW96aWxsYS81LjAgKE1hY2ludG9zaDsgSW50ZWwgTWFjIE9TIFggMTBfMTVfNykgQXBwbGVXZWJLaXQvNjA1LjEuMTUgKEtIVE1MLCBsaWtlIEdlY2tvKSBWZXJzaW9uLzE2LjYuMSBTYWZhcmkvNjA1LjEuMTUiLCJyZW1vdGVBZGRyZXNzIjoiMjAwMToxNmE0OjIxODoxM2YwOjcwNzI6OWFhYjo5NjZlOjNmNDUifQ.6CNYWv_Sd_c36sat7n-x50loW2tn6sp5AwEXp5nGMeg">
         <button onclick="loadVideo()">تشغيل الفيديو</button>
     </div>
 
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
     <script>
-        const urlInput = document.getElementById('videoUrl');
-        const player = document.getElementById('myPlayer');
+        // إعدادات Firebase الخاصة بك
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af",
+            measurementId: "G-2H4SJNLD1R"
+        };
 
-        // تشغيل الفيديو بمجرد اللصق أو الكتابة
-        urlInput.addEventListener('input', function() {
-            loadVideo();
-        });
+        // تهيئة Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const videoRef = database.ref('currentVideo');
 
+        // وظيفة التشغيل الأصلية مع إضافة إرسال البيانات لقاعدة البيانات
         function loadVideo() {
-            const url = urlInput.value.trim();
+            const url = document.getElementById('videoUrl').value;
+            const player = document.getElementById('myPlayer');
             
             if (url) {
-                // تحديث مصدر الفيديو وتشغيله فوراً
-                player.src = url;
-                player.play().catch(error => {
-                    console.log("التشغيل التلقائي قد يتطلب نقرة واحدة على الصفحة أولاً");
+                // بدلاً من التشغيل محلياً فقط، نرسل الرابط لقاعدة البيانات
+                videoRef.set({
+                    url: url,
+                    timestamp: Date.now()
                 });
+            } else {
+                alert("يرجى إدخال رابط فيديو صحيح");
             }
         }
+
+        // الاستماع للتغييرات في Firebase (المزامنة)
+        videoRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            const player = document.getElementById('myPlayer');
+            
+            if (data && data.url) {
+                // إذا كان الرابط مختلفاً عن الحالي، نقوم بتحديث المشغل
+                if (player.src !== data.url) {
+                    player.src = data.url;
+                    player.play().catch(error => {
+                        console.log("التشغيل التلقائي يتطلب تفاعل المستخدم أولاً");
+                    });
+                    // تحديث قيمة الحقل نصياً لجميع المستخدمين
+                    document.getElementById('videoUrl').value = data.url;
+                }
+            }
+        });
     </script>
 
 </body>
