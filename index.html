@@ -2,74 +2,97 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>مشغل الفيديو</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بث الفيديو المباشر المشترك</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 40px; }
-        .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 600px; text-align: center; }
-        
-        /* تصميم مشغل الفيديو */
-        video { width: 100%; border-radius: 8px; background: #000; margin-bottom: 20px; }
-        
-        /* تصميم قسم الإدارة المخفي */
-        #adminSection { border-top: 2px solid #eee; margin-top: 20px; padding-top: 20px; }
-        #linkInputArea { display: none; margin-top: 15px; }
-        
-        input { width: 80%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; outline: none; }
-        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s; }
-        button:hover { background-color: #0056b3; }
-        .unlock-btn { background-color: #6c757d; font-size: 12px; margin-top: 10px; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { width: 100%; max-width: 800px; text-align: center; }
+        video { width: 100%; border-radius: 12px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .admin-panel { margin-top: 30px; background: #2d2d2d; padding: 20px; border-radius: 12px; border: 1px solid #444; width: 100%; }
+        input { padding: 12px; border-radius: 6px; border: 1px solid #555; background: #1a1a1a; color: white; width: 70%; margin: 10px 5px; }
+        button { padding: 12px 25px; border-radius: 6px; border: none; background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        #linkControls { display: none; } /* مخفي حتى إدخال كلمة السر */
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>مشغل الفيديو</h2>
+        <h1>مشغل الفيديو المباشر 🔴</h1>
         
-        <video id="myPlayer" controls>
-            <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-            متصفحك لا يدعم تشغيل الفيديو.
+        <video id="mainPlayer" controls autoplay>
+            <source src="" type="video/mp4">
+            متصفحك لا يدعم الفيديو.
         </video>
 
-        <div id="adminSection">
-            <div id="passwordArea">
-                <input type="password" id="passInput" placeholder="أدخل كلمة السر لتعديل الفيديو">
-                <button onclick="checkPass()">فتح الإعدادات</button>
+        <div class="admin-panel">
+            <div id="authArea">
+                <input type="password" id="passInput" placeholder="أدخل كلمة السر للإدارة">
+                <button onclick="checkAdmin()">دخول</button>
             </div>
 
-            <div id="linkInputArea">
-                <p style="color: green; font-weight: bold;">تمت المصادقة: يمكنك تغيير الرابط الآن</p>
-                <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو الجديد هنا (MP4)">
-                <button onclick="updateVideo()">تحديث الفيديو</button>
+            <div id="linkControls">
+                <input type="text" id="videoUrlInput" placeholder="ضع رابط فيديو MP4 المباشر هنا">
+                <button onclick="updateFirebaseVideo()">تحديث للجميع</button>
             </div>
         </div>
     </div>
 
-    <script>
-        const secretPass = "1234"; // كلمة السر الخاصة بك
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        function checkPass() {
+        // إعدادات Firebase الخاصة بك
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        };
+
+        // تشغيل Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const videoRef = ref(db, 'currentVideo');
+
+        // 1. الاستماع للتغييرات (هذا الجزء يشتغل عند أصدقائك فوراً)
+        onValue(videoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.url) {
+                const video = document.getElementById('mainPlayer');
+                // تحديث الفيديو فقط إذا كان الرابط جديداً
+                if (video.src !== data.url) {
+                    video.src = data.url;
+                    video.load();
+                    video.play();
+                }
+            }
+        });
+
+        // 2. وظيفة إرسال الرابط الجديد (لك أنت كمدير)
+        window.updateFirebaseVideo = function() {
+            const url = document.getElementById('videoUrlInput').value;
+            if (url) {
+                set(videoRef, {
+                    url: url,
+                    timestamp: Date.now()
+                }).then(() => alert("تم التحديث عند الجميع!"));
+            }
+        };
+
+        // 3. التحقق من كلمة السر محلياً (للبساطة)
+        window.checkAdmin = function() {
             const pass = document.getElementById('passInput').value;
-            if (pass === secretPass) {
-                document.getElementById('passwordArea').style.display = 'none';
-                document.getElementById('linkInputArea').style.display = 'block';
+            if (pass === "1234") { // غير كلمة السر هنا
+                document.getElementById('authArea').style.display = 'none';
+                document.getElementById('linkControls').style.display = 'block';
             } else {
-                alert("كلمة السر خاطئة!");
+                alert("خطأ!");
             }
-        }
-
-        function updateVideo() {
-            const newUrl = document.getElementById('videoUrl').value;
-            const video = document.getElementById('myPlayer');
-            if (newUrl) {
-                video.src = newUrl;
-                video.load();
-                video.play();
-                alert("تم تحديث الفيديو بنجاح!");
-            } else {
-                alert("يرجى إدخال رابط!");
-            }
-        }
+        };
     </script>
-
 </body>
 </html>
