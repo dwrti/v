@@ -3,49 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Admin Dashboard - التحكم الكامل</title>
+    <title>Master Controller</title>
     <style>
         :root { --blue: #007aff; --red: #ff3b30; --gray: #1c1c1e; }
-        body { font-family: -apple-system, system-ui; background: #000; color: white; margin: 0; padding: 20px; }
-        .panel { background: var(--gray); padding: 20px; border-radius: 20px; border: 1px solid #333; max-width: 450px; margin: auto; }
-        h2 { text-align: center; margin-bottom: 20px; font-size: 22px; }
-        input { width: 100%; padding: 15px; background: #2c2c2e; border: 1px solid #3d3d41; border-radius: 12px; color: white; margin-bottom: 15px; box-sizing: border-box; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        button { padding: 12px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
-        .btn-main { background: var(--blue); color: white; grid-column: span 2; padding: 18px; font-size: 16px; }
-        .btn-action { background: #3a3a3c; color: white; font-size: 13px; }
-        .btn-danger { background: var(--red); color: white; }
-        .history { margin-top: 20px; border-top: 1px solid #333; padding-top: 15px; }
-        .history-item { background: #2c2c2e; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; }
-        .history-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; }
-        button:active { opacity: 0.7; transform: scale(0.98); }
+        body { font-family: -apple-system, sans-serif; background: #000; color: white; padding: 20px; margin: 0; }
+        .panel { max-width: 400px; margin: auto; background: var(--gray); padding: 25px; border-radius: 25px; border: 1px solid #333; }
+        input[type="url"] { width: 100%; padding: 15px; background: #2c2c2e; border: 1px solid #444; border-radius: 12px; color: white; margin-bottom: 20px; box-sizing: border-box; }
+        .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        button { padding: 15px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-send { background: var(--blue); color: white; grid-column: span 2; font-size: 18px; }
+        .btn-pause { background: #ffd60a; color: black; }
+        .btn-resume { background: #32d74b; color: black; }
+        .btn-delete { background: var(--red); color: white; grid-column: span 2; margin-top: 10px; }
+        .seek-box { margin: 20px 0; text-align: center; background: #2c2c2e; padding: 15px; border-radius: 12px; }
+        input[type="range"] { width: 100%; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="panel">
-    <h2>🎮 لوحة التحكم</h2>
+    <h3 style="text-align:center">🎮 تحكم الأدمن</h3>
+    <input type="url" id="vUrl" placeholder="أدخل رابط الفيديو الجديد...">
     
-    <input type="url" id="vUrl" placeholder="ضع رابط الفيديو هنا..." inputmode="url">
-    
-    <div class="grid">
-        <button class="btn-main" onclick="publish('play')">بث فيديو جديد 🚀</button>
-        <button class="btn-action" onclick="control('pause')">إيقاف مؤقت ⏸</button>
-        <button class="btn-action" onclick="control('resume')">استئناف التشغيل ▶️</button>
-        <button class="btn-action" onclick="control('mute')">كتم الصوت 🔇</button>
-        <button class="btn-action" onclick="control('unmute')">تشغيل الصوت 🔊</button>
-        <button class="btn-danger" style="grid-column: span 2;" onclick="control('refresh')">تحديث الشاشات عند الجميع 🔄</button>
+    <div class="control-grid">
+        <button class="btn-send" onclick="publish()">بث الرابط الجديد 🚀</button>
+        <button class="btn-pause" onclick="sendCommand('pause')">إيقاف مؤقت ⏸</button>
+        <button class="btn-resume" onclick="sendCommand('play')">تشغيل ▶️</button>
     </div>
 
-    <div class="history">
-        <p style="font-size: 14px; color: #888;">الروابط الأخيرة:</p>
-        <div id="historyList"></div>
+    <div class="seek-box">
+        <label>تقديم / تأخير الفيديو (ثواني)</label>
+        <input type="range" id="seeker" min="0" max="300" value="0" onchange="seekVideo(this.value)">
+        <div id="timeVal">0 ثانية</div>
     </div>
+
+    <button class="btn-delete" onclick="deleteLink()">حذف الرابط وإيقاف البث عند الكل 🗑️</button>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, set, push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, set, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -60,29 +57,25 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // دالة بث رابط جديد
-    window.publish = function() {
-        const url = document.getElementById('vUrl').value.trim();
-        if(!url) return alert("الرابط فارغ!");
-        
-        const ts = Date.now();
-        set(ref(db, 'liveVideo'), { url: url, timestamp: ts, action: 'new' });
-        addToHistory(url);
-        document.getElementById('vUrl').value = "";
+    window.publish = () => {
+        const url = document.getElementById('vUrl').value;
+        if(url) set(ref(db, 'liveVideo'), { url: url, ts: Date.now() });
     };
 
-    // دالة التحكم (إيقاف، صوت، تحديث)
-    window.control = function(act) {
-        set(ref(db, 'controls'), { action: act, timestamp: Date.now() });
+    window.sendCommand = (cmd) => {
+        set(ref(db, 'commands'), { type: cmd, ts: Date.now() });
     };
 
-    function addToHistory(url) {
-        const list = document.getElementById('historyList');
-        const item = document.createElement('div');
-        item.className = 'history-item';
-        item.innerHTML = `<span>${url}</span><button class="btn-action" onclick="document.getElementById('vUrl').value='${url}'; publish();">بث</button>`;
-        list.prepend(item);
-    }
+    window.seekVideo = (val) => {
+        document.getElementById('timeVal').innerText = val + " ثانية";
+        set(ref(db, 'commands'), { type: 'seek', value: val, ts: Date.now() });
+    };
+
+    window.deleteLink = () => {
+        remove(ref(db, 'liveVideo'));
+        set(ref(db, 'commands'), { type: 'stop_all', ts: Date.now() });
+        alert("تم حذف الرابط وإيقاف العرض عند الجميع");
+    };
 </script>
 </body>
 </html>
