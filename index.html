@@ -3,91 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشاهدة جماعية متزامنة</title>
+    <title>مشغل البث المتزامن</title>
     
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
     
     <style>
-        body { margin: 0; background: #0b0e14; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        .container { width: 90%; max-width: 850px; text-align: center; }
-        video { width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #000; outline: none; }
-        .status { margin-top: 15px; padding: 8px 15px; border-radius: 20px; background: #1a1d23; font-size: 0.9em; color: #00ffcc; border: 1px solid #333; }
-        .controls-note { margin-top: 10px; color: #888; font-size: 0.8em; }
+        body { margin: 0; background: #121212; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .container { width: 95%; max-width: 800px; text-align: center; }
+        video { width: 100%; border-radius: 12px; background: #000; cursor: pointer; border: 1px solid #333; }
+        .status { margin-top: 15px; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #00e676; font-weight: bold; }
+        .btn-start { background: #00e676; color: #000; border: none; padding: 15px 30px; border-radius: 30px; font-size: 1.2rem; cursor: pointer; margin-bottom: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
 
+<div id="overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:100; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+    <button class="btn-start" onclick="startApp()">اضغط هنا للدخول والمزامنة 🎬</button>
+    <p>يجب الضغط للسماح بالتشغيل التلقائي</p>
+</div>
+
 <div class="container">
-    <h2>📺 مشاهدة جماعية</h2>
+    <h2 id="title">بث مباشر - غرفة الأصدقاء</h2>
     <video id="video" controls playsinline></video>
-    <div id="status" class="status">جاري الربط مع الأصدقاء...</div>
-    <p class="controls-note">ملاحظة: أي تغيير في التشغيل سيظهر عند الجميع.</p>
+    <div id="status" class="status">في انتظار التفعيل...</div>
 </div>
 
 <script>
-    // 1. إعدادات Firebase الخاصة بك
+    // 1. إعدادات Firebase
     const firebaseConfig = {
-      apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-      authDomain: "videos-5e336.firebaseapp.com",
-      databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-      projectId: "videos-5e336",
-      storageBucket: "videos-5e336.firebasestorage.app",
-      messagingSenderId: "300218651134",
-      appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
     };
 
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database().ref('sync_player');
+    const db = firebase.database().ref('global_sync');
 
     const video = document.getElementById('video');
     const status = document.getElementById('status');
-    const videoSrc = 'https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264';
+    const videoSrc = 'https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8';
 
-    // 2. تشغيل البث
-    if (Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(videoSrc);
-        hls.attachMedia(video);
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = videoSrc;
+    function startApp() {
+        document.getElementById('overlay').style.display = 'none';
+        
+        // تشغيل الفيديو أول مرة
+        if (Hls.isSupported()) {
+            const hls = new Hls();
+            hls.loadSource(videoSrc);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoSrc;
+            video.play();
+        }
+
+        startSync();
     }
 
-    // 3. منع التكرار اللانهائي
-    let isUpdating = false;
+    function startSync() {
+        let isInternalUpdate = false;
 
-    // إرسال الحالة للقاعدة عند التغيير
-    video.onplay = () => { if(!isUpdating) db.update({ playing: true, time: video.currentTime }); };
-    video.onpause = () => { if(!isUpdating) db.update({ playing: false, time: video.currentTime }); };
-    video.onseeking = () => { if(!isUpdating) db.update({ time: video.currentTime }); };
-
-    // 4. استقبال الحالة من الأصدقاء
-    db.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
-
-        isUpdating = true; // تفعيل وضع التحديث لتجنب إرسال رد فعل دائري
-
-        // مزامنة الوقت إذا كان الفرق أكثر من ثانية
-        if (Math.abs(video.currentTime - data.time) > 1.5) {
-            video.currentTime = data.time;
-        }
-
-        // مزامنة التشغيل والتوقف
-        if (data.playing && video.paused) {
-            video.play().catch(() => {
-                status.innerText = "انقر على المشغل لتفعيل الصوت والمزامنة";
+        // إرسال التحديثات
+        const updateRemote = () => {
+            if (isInternalUpdate) return;
+            db.set({
+                playing: !video.paused,
+                time: video.currentTime,
+                timestamp: Date.now()
             });
-        } else if (!data.playing && !video.paused) {
-            video.pause();
-        }
+        };
 
-        status.innerText = "متصل - مزامنة نشطة مع الأصدقاء ✅";
-        
-        setTimeout(() => { isUpdating = false; }, 500);
-    });
+        video.onplay = updateRemote;
+        video.onpause = updateRemote;
+        video.onseeking = updateRemote;
 
+        // استقبال التحديثات من الأصدقاء
+        db.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            isInternalUpdate = true;
+
+            // مزامنة الوقت (إذا كان الفرق أكثر من ثانيتين)
+            if (Math.abs(video.currentTime - data.time) > 2) {
+                video.currentTime = data.time;
+            }
+
+            // مزامنة التشغيل
+            if (data.playing && video.paused) {
+                video.play().catch(e => console.log("خطأ في التشغيل التلقائي"));
+            } else if (!data.playing && !video.paused) {
+                video.pause();
+            }
+
+            status.innerText = "متصل ✅ - المشاهدون الآن متزامنون";
+            setTimeout(() => { isInternalUpdate = false; }, 500);
+        });
+    }
 </script>
 
 </body>
