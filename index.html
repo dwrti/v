@@ -41,7 +41,7 @@
             padding: 12px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            font-size: 16px; /* حجم مناسب للمس في الجوال */
+            font-size: 16px;
         }
 
         button {
@@ -96,13 +96,13 @@
         const database = firebase.database();
         const videoRef = database.ref('currentVideo');
 
-        // وظيفتك الأصلية كما هي مع إضافة سطر المزامنة فقط
+        // وظيفتك الأصلية مع إضافة سطر المزامنة
         function loadVideo() {
             const url = document.getElementById('videoUrl').value;
             const player = document.getElementById('myPlayer');
             
             if (url) {
-                // مزامنة الرابط مع Firebase
+                // حفظ الرابط في Firebase ليبقى متاحاً حتى بعد التحديث
                 videoRef.set({ url: url }); 
                 
                 player.src = url;
@@ -112,14 +112,24 @@
             }
         }
 
-        // استقبال المزامنة من المستخدمين الآخرين
+        // استقبال التحديثات (وهي التي تعمل عند تحديث الصفحة أيضاً)
         videoRef.on('value', (snapshot) => {
             const data = snapshot.val();
             const player = document.getElementById('myPlayer');
-            if (data && data.url && data.url !== player.src) {
-                player.src = data.url;
-                document.getElementById('videoUrl').value = data.url;
-                player.play().catch(e => console.log("بانتظار تفاعل المستخدم"));
+            const urlInput = document.getElementById('videoUrl');
+
+            if (data && data.url) {
+                // إذا كان الرابط في قاعدة البيانات مختلف عن المشغل الحالي (يحدث عند التحديث)
+                if (player.src !== data.url) {
+                    player.src = data.url;
+                    urlInput.value = data.url;
+                    
+                    // محاولة التشغيل التلقائي بعد التحديث
+                    player.load();
+                    player.play().catch(e => {
+                        console.log("التشغيل التلقائي يتطلب تفاعل المستخدم أولاً في بعض المتصفحات");
+                    });
+                }
             }
         });
     </script>
