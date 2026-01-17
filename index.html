@@ -3,81 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل فيديو متزامن</title>
+    <title>مشغل فيديو متوافق</title>
     <style>
-        /* نفس التنسيق الأول تماماً */
-        body {
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            background-color: #f4f4f9;
-        }
-
-        .video-container {
-            width: 100%;
-            max-width: 600px;
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-
-        video {
-            width: 100%;
-            display: block;
-        }
-
-        .controls-area {
-            width: 100%;
-            max-width: 600px;
-            margin-top: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        input[type="text"] {
-            padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-
-        button {
-            padding: 12px;
-            background-color: #25d366; /* اللون الأخضر الأصلي */
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        button:hover {
-            background-color: #128c7e;
-        }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: #f4f4f9; margin: 0; }
+        .video-container { width: 100%; max-width: 600px; background: #000; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        video { width: 100%; display: block; background-color: #000; min-height: 200px; }
+        .controls-area { width: 100%; max-width: 600px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        input[type="text"] { padding: 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; -webkit-appearance: none; }
+        button { padding: 15px; background-color: #25d366; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        button:active { background-color: #128c7e; }
     </style>
 </head>
 <body>
 
     <div class="video-container">
-        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Waiting+for+Link...">
+        <video id="myPlayer" controls playsinline poster="https://via.placeholder.com/600x340?text=Waiting+for+Link...">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
         <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو هنا...">
-        <button id="updateBtn">تشغيل وتحديث عند الجميع</button>
+        <button id="updateBtn">تحديث وتشغيل عند الجميع</button>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+    <script>
+        // إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -88,30 +42,35 @@
             appId: "1:300218651134:web:4bd24df8e555e62828f0af"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const videoRef = ref(db, 'currentVideo');
+        // تهيئة Firebase بالطريقة القديمة المتوافقة
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const videoRef = db.ref('currentVideo');
 
         const player = document.getElementById('myPlayer');
         const input = document.getElementById('videoUrl');
         const btn = document.getElementById('updateBtn');
 
-        // استلام الرابط الجديد لحظياً
-        onValue(videoRef, (snapshot) => {
+        // استلام الرابط لحظياً
+        videoRef.on('value', (snapshot) => {
             const data = snapshot.val();
             if (data && data.url) {
                 if (player.src !== data.url) {
                     player.src = data.url;
+                    player.load(); // إجبار المتصفح على تحميل المصدر الجديد
                 }
             }
         });
 
-        // إرسال الرابط الجديد عند الضغط على الزر
+        // إرسال الرابط
         btn.onclick = function() {
-            const newUrl = input.value;
+            const newUrl = input.value.trim();
             if (newUrl) {
-                set(videoRef, { url: newUrl });
-                input.value = ""; // مسح الحقل بعد الإرسال
+                videoRef.set({ url: newUrl })
+                .then(() => {
+                    input.value = "";
+                })
+                .catch((err) => alert("حدث خطأ: " + err.message));
             }
         };
     </script>
