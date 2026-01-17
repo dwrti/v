@@ -3,68 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الفيديو الاحترافي</title>
+    <title>بث مباشر للأصدقاء</title>
     <style>
-        body { font-family: sans-serif; background: #000; color: white; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        .header { padding: 10px; background: #111; text-align: center; font-size: 0.9rem; border-bottom: 1px solid #333; opacity: 0.7; }
-        #playerContainer { flex-grow: 1; display: flex; align-items: center; justify-content: center; }
-        video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; }
-        .loading { color: #555; font-style: italic; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+        #video-wrapper { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        video, iframe { width: 100%; height: 100%; border: none; }
+        /* زر تفعيل الصوت لأن المتصفحات تحجب الصوت تلقائياً */
+        #unmute-shield {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); color: white;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9999; cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
-<div class="header">📡 بث مباشر - مزامنة أونلاين</div>
-<div id="playerContainer">
-    <div class="loading">بانتظار الرابط...</div>
-</div>
+    <div id="unmute-shield" onclick="this.style.display='none'">
+        <span style="font-size: 50px;">🎧</span>
+        <p>إضغط هنا لتفعيل الصوت والمزامنة</p>
+    </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    <div id="video-wrapper">
+        <p style="color: #444;">في انتظار إشارة البث...</p>
+    </div>
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-        authDomain: "videos-5e336.firebaseapp.com",
-        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-        projectId: "videos-5e336",
-        storageBucket: "videos-5e336.firebasestorage.app",
-        messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-    };
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const videoRef = ref(db, 'sharedVideo');
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        };
 
-    onValue(videoRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.url) {
-            const url = data.url.trim();
-            const container = document.getElementById('playerContainer');
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const videoRef = ref(db, 'liveVideo');
 
-            // إذا كان يوتيوب
-            if (url.includes("youtube.com") || url.includes("youtu.be")) {
-                let id = url.includes("v=") ? url.split("v=")[1].split("&")[0] : url.split("/").pop();
-                container.innerHTML = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        // الاستماع اللحظي للتغييرات
+        onValue(videoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.url) {
+                renderLiveVideo(data.url, data.timestamp);
+            }
+        });
+
+        function renderLiveVideo(url, ts) {
+            const wrapper = document.getElementById('video-wrapper');
+            
+            // روابط اليوتيوب
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                let id = url.includes('v=') ? url.split('v=')[1].split('&')[0] : url.split('/').pop();
+                wrapper.innerHTML = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&mute=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
             } 
-            // أي رابط آخر (سواء انتهى بـ mp4 أو لا) سنجبره على الفتح داخل مشغل الفيديو
+            // الروابط المباشرة (MP4, MOV, etc.)
             else {
-                container.innerHTML = `
-                    <video id="vPlayer" controls autoplay playsinline>
+                // إضافة الـ timestamp كـ ID يجبر المتصفح على إعادة بناء المشغل فوراً
+                wrapper.innerHTML = `
+                    <video id="player_${ts}" controls autoplay playsinline style="width:100%; height:100%;">
                         <source src="${url}" type="video/mp4">
-                        <source src="${url}" type="video/webm">
-                        <source src="${url}" type="application/x-mpegURL"> متصفحك لا يدعم هذا الفيديو.
+                        <source src="${url}" type="video/quicktime">
                     </video>`;
                 
-                // محاولة تشغيل الفيديو برمجياً لتجاوز قيود المتصفح
-                const v = document.getElementById('vPlayer');
-                v.play().catch(() => {
-                    console.log("التشغيل التلقائي يحتاج تفاعل المستخدم أولاً");
-                });
+                // محاولة تشغيل تلقائي
+                const v = document.querySelector('video');
+                if(v) v.play().catch(e => console.log("بانتظار تفاعل المستخدم"));
             }
         }
-    });
-</script>
+    </script>
 </body>
 </html>
