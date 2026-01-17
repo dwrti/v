@@ -3,20 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل Puffin المستقر</title>
-    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <title>Video Sync</title>
     <style>
-        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { width: 95%; max-width: 800px; }
-        .plyr { border-radius: 12px; overflow: hidden; }
+        body { background: #000; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .container { width: 100%; max-width: 900px; }
+        video { width: 100%; border: 2px solid #333; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <video id="player" playsinline controls data-poster="">
-        <source src="" type="video/mp4" />
-    </video>
+    <video id="player" controls playsinline></video>
 </div>
 
 <script type="module">
@@ -36,59 +33,50 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
-    const videoElement = document.getElementById('player');
+    const video = document.getElementById('player');
     
-    // تهيئة Plyr بشكل صحيح
-    const player = new Plyr(videoElement, {
-        controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen']
-    });
-
     let isRemoteUpdate = false;
 
+    // استقبال البيانات من فيربيز
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
 
         isRemoteUpdate = true;
 
-        // تحديث الرابط فوراً إذا تغير في فيربيز
-        if (data.url && player.source !== data.url) {
-            player.source = {
-                type: 'video',
-                sources: [{ src: data.url, type: 'video/mp4' }]
-            };
+        // 1. تحديث الرابط (أهم شيء)
+        if (data.url && video.src !== data.url) {
+            video.src = data.url;
         }
 
-        // مزامنة الوقت
-        if (Math.abs(player.currentTime - data.time) > 2) {
-            player.currentTime = data.time;
+        // 2. مزامنة الوقت
+        if (Math.abs(video.currentTime - data.time) > 2) {
+            video.currentTime = data.time;
         }
 
-        // مزامنة التشغيل
-        if (data.status === "playing" && player.paused) {
-            player.play().catch(() => {});
-        } else if (data.status === "paused" && !player.paused) {
-            player.pause();
+        // 3. مزامنة الحالة
+        if (data.status === "playing" && video.paused) {
+            video.play().catch(() => {});
+        } else if (data.status === "paused" && !video.paused) {
+            video.pause();
         }
 
-        setTimeout(() => { isRemoteUpdate = false; }, 600);
+        setTimeout(() => { isRemoteUpdate = false; }, 800);
     });
 
-    // إرسال التحديثات من المتصفح إلى فيربيز
-    player.on('play', () => {
-        if (!isRemoteUpdate) update(videoRef, { status: "playing", time: player.currentTime });
-    });
+    // إرسال الأوامر عند اللمس أو التحكم
+    video.onplay = () => {
+        if (!isRemoteUpdate) update(videoRef, { status: "playing", time: video.currentTime });
+    };
 
-    player.on('pause', () => {
-        if (!isRemoteUpdate) update(videoRef, { status: "paused", time: player.currentTime });
-    });
+    video.onpause = () => {
+        if (!isRemoteUpdate) update(videoRef, { status: "paused", time: video.currentTime });
+    };
 
-    player.on('seeked', () => {
-        if (!isRemoteUpdate) update(videoRef, { time: player.currentTime });
-    });
+    video.onseeked = () => {
+        if (!isRemoteUpdate) update(videoRef, { time: video.currentTime });
+    };
 </script>
-
-<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 
 </body>
 </html>
