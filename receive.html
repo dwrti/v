@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استقبال فيديو - أونلاين</title>
+    <style>
+        body { font-family: sans-serif; background: #000; color: white; margin: 0; text-align: center; }
+        .header { padding: 15px; background: #111; font-size: 1.2rem; border-bottom: 1px solid #333; }
+        #videoContainer { margin-top: 20px; padding: 10px; }
+        video, iframe { width: 100%; max-width: 600px; height: 350px; border-radius: 15px; background: #1a1a1a; }
+        .waiting { color: #666; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+<div class="header">📺 شاشة الاستقبال المباشرة</div>
+<div id="videoContainer">
+    <p class="waiting">بانتظار بث فيديو جديد...</p>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const videoRef = ref(db, 'sharedVideo');
+
+    // المراقبة اللحظية: أي تغيير في الداتابيز سيحدث الشاشة فوراً
+    onValue(videoRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.url) {
+            const container = document.getElementById('videoContainer');
+            const link = data.url;
+
+            if (link.match(/\.(mp4|webm|mov|m4v)$/i)) {
+                container.innerHTML = `<video controls autoplay playsinline><source src="${link}"></video>`;
+            } 
+            else if (link.includes("youtube.com") || link.includes("youtu.be")) {
+                let id = link.includes("v=") ? link.split('v=')[1].split('&')[0] : link.split('/').pop();
+                container.innerHTML = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1" frameborder="0" allowfullscreen></iframe>`;
+            }
+            else {
+                container.innerHTML = `<p>وصل رابط جديد:</p><a href="${link}" target="_blank" style="color:#28a745;">${link}</a>`;
+            }
+        }
+    });
+</script>
+</body>
+</html>
