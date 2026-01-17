@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المزامنة</title>
-    
+    <title>مشغل المزامنة اللحظية</title>
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-    
     <style>
         body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .container { width: 90%; max-width: 800px; }
@@ -25,7 +23,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -34,40 +32,57 @@
         projectId: "videos-5e336",
         storageBucket: "videos-5e336.firebasestorage.app",
         messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af",
-        measurementId: "G-2H4SJNLD1R"
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
     const video = document.getElementById('player');
-    
-    // تشغيل التصميم الجمالي
-    const player = new Plyr('#player');
+    const player = new Plyr(video);
 
     let isRemoteUpdate = false;
 
+    // استقبال التحديثات من الآخرين
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
             isRemoteUpdate = true;
-            if (Math.abs(video.currentTime - data.time) > 1.5) {
+            
+            // مزامنة الوقت إذا كان الفرق كبيراً
+            if (Math.abs(video.currentTime - data.time) > 2) {
                 video.currentTime = data.time;
             }
+
+            // مزامنة حالة التشغيل
             if (data.status === "playing" && video.paused) {
-                video.play().catch(() => {});
+                video.play().catch(() => console.log("تفاعل مع الصفحة أولاً"));
             } else if (data.status === "paused" && !video.paused) {
                 video.pause();
             }
-            setTimeout(() => { isRemoteUpdate = false; }, 500);
+            
+            setTimeout(() => { isRemoteUpdate = false; }, 600);
         }
     });
 
-    video.onplay = () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: video.currentTime }); };
-    video.onpause = () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: video.currentTime }); };
-    video.onseeked = () => { if (!isRemoteUpdate) update(videoRef, { time: video.currentTime }); };
+    // إرسال التحديثات للجميع عند تغيير الحالة يدوياً
+    video.onplay = () => {
+        if (!isRemoteUpdate) {
+            update(videoRef, { status: "playing", time: video.currentTime });
+        }
+    };
 
+    video.onpause = () => {
+        if (!isRemoteUpdate) {
+            update(videoRef, { status: "paused", time: video.currentTime });
+        }
+    };
+
+    video.onseeked = () => {
+        if (!isRemoteUpdate) {
+            update(videoRef, { time: video.currentTime });
+        }
+    };
 </script>
 </body>
 </html>
