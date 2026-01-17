@@ -45,32 +45,48 @@
             position: relative;
         }
 
+        /* تعديل لضمان ظهور الشاشة في Puffin */
         .screen-border { 
             background: #000; 
-            aspect-ratio: 16 / 9; 
             position: relative; 
+            width: 100%;
+            padding-top: 56.25%; /* بديل لـ aspect-ratio 16:9 */
             overflow: hidden; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+        }
+
+        #video, #noise-canvas, #tap-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
 
         #tap-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* زر البدء لمتصفح Puffin */
+        #start-prompt {
+            color: white;
+            border: 1px solid white;
+            padding: 10px 20px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.1);
         }
 
         #noise-canvas {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
             display: none;
         }
 
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
+        video { object-fit: contain; z-index: 2; display: none; }
 
         .tv-controls {
             display: flex;
@@ -226,7 +242,9 @@
 <div class="container">
     <div class="tv-unit">
         <div class="screen-border">
-            <div id="tap-overlay"></div>
+            <div id="tap-overlay" onclick="firstTouch()">
+                <div id="start-prompt">اضغط لتشغيل الجهاز</div>
+            </div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
         </div>
@@ -286,6 +304,7 @@
     let globalAdminPresent = false;
     let userHasInteracted = false;
 
+    // تهيئة Firebase كما هي
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -301,6 +320,15 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
+
+    // دالة التفاعل الأول الخاصة بـ Puffin
+    function firstTouch() {
+        userHasInteracted = true;
+        initAudio();
+        overlay.style.display = 'none';
+        // لا نقوم بتشغيل الطاقة هنا تلقائياً، بل نسمح للمستخدم بالضغط على زر الطاقة الحقيقي لاحقاً
+        // ولكن أزلنا الغطاء الأسود الذي يعيق المتصفح.
+    }
 
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
@@ -324,7 +352,8 @@
             syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
         } else {
             powerBtn.classList.remove('active');
-            overlay.style.display = 'block';
+            // في حالة الإطفاء، نظهر رسالة البدء فقط إذا لم يتفاعل المستخدم بعد
+            if(!userHasInteracted) overlay.style.display = 'flex';
             video.style.display = 'none';
             video.pause();
             toggleStatic(false);
@@ -334,7 +363,6 @@
 
     function publicEject() {
         userHasInteracted = true;
-        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
@@ -373,13 +401,15 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
-                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                video.play().catch(() => {}); 
+                video.play().catch(() => {
+                    video.muted = true; // حل لمشاكل التشغيل في Puffin
+                    video.play();
+                }); 
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -393,21 +423,25 @@
     });
 
     function initAudio() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        } catch(e) { console.log("AudioContext not supported"); }
     }
 
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
-        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; noiseNode.loop = true;
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.04;
-        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
-        noiseNode.start();
+        try {
+            const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            noiseNode = audioCtx.createBufferSource();
+            noiseNode.buffer = buffer; noiseNode.loop = true;
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.value = 0.04;
+            noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
+            noiseNode.start();
+        } catch(e) {}
     }
 
     function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
@@ -442,7 +476,6 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -450,7 +483,6 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
@@ -511,9 +543,7 @@
             userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
-
             video.ontimeupdate = () => {
                 if (!video.paused && !isRemoteUpdate && isAdmin) {
                     syncRef.update({ 
@@ -523,7 +553,6 @@
                     });
                 }
             };
-
             window.addEventListener('beforeunload', () => {
                 syncRef.update({ adminPresent: false });
             });
@@ -556,7 +585,9 @@
         if (url.includes('.m3u8')) {
             if (Hls.isSupported()) { 
                 hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+            }
         } else { video.src = url; }
     }
 
