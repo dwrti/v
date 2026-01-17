@@ -3,26 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل Puffin السريع</title>
+    <title>مشغل فيديو بسيط</title>
     <style>
         body {
             font-family: sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 15px;
-            background-color: #0f172a;
-            color: white;
-            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
         }
 
         .video-container {
             width: 100%;
-            max-width: 700px;
+            max-width: 600px;
             background: #000;
-            border-radius: 12px;
+            border-radius: 8px;
             overflow: hidden;
-            border: 1px solid #334155;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
         video {
@@ -32,47 +30,54 @@
 
         .controls-area {
             width: 100%;
-            max-width: 700px;
-            margin-top: 15px;
+            max-width: 600px;
+            margin-top: 20px;
             display: flex;
             flex-direction: column;
             gap: 10px;
         }
 
         input[type="text"] {
-            padding: 15px;
-            border: 2px solid #334155;
-            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
             font-size: 16px;
-            background: #1e293b;
-            color: #fff;
-            text-align: center;
         }
 
-        .info {
-            font-size: 12px;
-            color: #94a3b8;
-            text-align: center;
+        button {
+            padding: 12px;
+            background-color: #25d366;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #128c7e;
         }
     </style>
 </head>
 <body>
 
     <div class="video-container">
-        <video id="myPlayer" controls playsinline poster="https://via.placeholder.com/700x400/000/fff?text=Paste+Link+Below">
+        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
-        <input type="text" id="videoUrl" oninput="autoLoadVideo()" placeholder="إلصق الرابط هنا وسيعمل فورا..." autocomplete="off">
-        <p class="info">بمجرد لصق الرابط، سيتم تحديث الفيديو عند الجميع تلقائياً.</p>
+        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
+        <button onclick="loadVideo()">تشغيل الفيديو</button>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
     <script>
+        // إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -84,37 +89,44 @@
             measurementId: "G-2H4SJNLD1R"
         };
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        // تهيئة Firebase
+        firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const videoRef = database.ref('currentVideo');
 
-        const player = document.getElementById('myPlayer');
+        // --- التعديل الجديد: التشغيل التلقائي عند اللصق أو الكتابة ---
         const urlInput = document.getElementById('videoUrl');
+        urlInput.addEventListener('input', function() {
+            if (this.value.trim() !== "") {
+                loadVideo();
+            }
+        });
+        // -------------------------------------------------------
 
-        // وظيفة التشغيل التلقائي عند اللصق (بدون زر تأكيد)
-        function autoLoadVideo() {
-            const url = urlInput.value.trim();
-            if (url && url.startsWith('http')) {
-                videoRef.set({ url: url }); 
-                player.src = url;
-                player.play().catch(e => console.log("تفاعل مطلوب"));
+        // وظيفة التشغيل الأصلية
+        function loadVideo() {
+            const url = document.getElementById('videoUrl').value;
+            
+            if (url) {
+                videoRef.set({
+                    url: url,
+                    timestamp: Date.now()
+                });
             }
         }
 
-        // المزامنة والاستمرارية بعد التحديث
+        // الاستماع للتغييرات في Firebase
         videoRef.on('value', (snapshot) => {
             const data = snapshot.val();
+            const player = document.getElementById('myPlayer');
+            
             if (data && data.url) {
                 if (player.src !== data.url) {
                     player.src = data.url;
-                    urlInput.value = data.url;
-                    player.load();
-                    player.play().catch(e => {
-                        // Puffin قد يحتاج ضغطة واحدة على الشاشة للتشغيل التلقائي
-                        console.log("Auto-play blocked by browser");
+                    player.play().catch(error => {
+                        console.log("التشغيل التلقائي يتطلب تفاعل المستخدم أولاً أو الرابط غير مدعوم");
                     });
+                    document.getElementById('videoUrl').value = data.url;
                 }
             }
         });
