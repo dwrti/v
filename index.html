@@ -3,161 +3,192 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المزامنة الاحترافي</title>
+    <title>StreamSync Pro | منصة المشاهدة الجماعية</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        /* تحسينات التصميم العام */
         :root {
-            --primary-color: #007bff;
-            --success-color: #28a745;
-            --bg-dark: #0f172a;
-            --card-bg: #1e293b;
-            --text-main: #f8fafc;
+            --primary-color: #e50914; /* أحمر نيتفليكس */
+            --bg-color: #0f1014;
+            --card-bg: #1a1c23;
+            --text-color: #ffffff;
+            --accent-color: #00d1b2;
         }
 
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            padding: 20px;
-            background-color: var(--bg-dark); 
-            color: var(--text-main);
+            background-color: var(--bg-color); 
+            color: var(--text-color);
             margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             min-height: 100vh;
         }
 
-        .card { 
-            background: var(--card-bg); 
-            padding: 25px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3); 
-            width: 95%; 
-            max-width: 800px; 
-            text-align: center; 
-            margin-bottom: 20px; 
-            border: 1px solid rgba(255,255,255,0.05);
+        .container {
+            width: 100%;
+            max-width: 900px;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
-        h2, h3 { margin-top: 0; color: var(--text-main); }
-
-        /* ستايل مشغل الفيديو */
-        .video-container {
+        /* تصميم المشغل */
+        .video-wrapper {
             position: relative;
             background: #000;
-            border-radius: 12px;
+            border-radius: 15px;
             overflow: hidden;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            line-height: 0; /* منع الفراغات تحت الفيديو */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #333;
         }
 
         video { 
             width: 100%; 
-            max-height: 70vh;
-            outline: none;
+            display: block;
+            aspect-ratio: 16 / 9;
         }
 
-        /* تحسين المدخلات والأزرار */
+        /* شريط الحالة */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: var(--card-bg);
+            border-radius: 0 0 15px 15px;
+            font-size: 14px;
+            border: 1px solid #333;
+            border-top: none;
+        }
+
+        .status-online { color: var(--accent-color); }
+        .viewer-count { color: #aaa; }
+
+        /* البطاقات الإدارية */
+        .card { 
+            background: var(--card-bg); 
+            padding: 25px; 
+            border-radius: 15px; 
+            margin-top: 20px;
+            border: 1px solid #333;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
         input { 
-            width: 100%; 
-            box-sizing: border-box;
+            flex: 1;
             padding: 12px 15px; 
-            margin: 15px 0; 
-            border: 2px solid #334155; 
+            background: #2a2d37;
+            border: 1px solid #444; 
             border-radius: 8px; 
-            font-size: 16px; 
-            background: #0f172a;
             color: white;
-            transition: border-color 0.3s;
-        }
-        input:focus {
-            border-color: var(--primary-color);
+            font-size: 14px;
             outline: none;
+            transition: 0.3s;
         }
+
+        input:focus { border-color: var(--primary-color); }
 
         button { 
-            width: 100%;
-            padding: 14px; 
+            padding: 12px 20px; 
             background-color: var(--primary-color); 
             color: white; 
             border: none; 
             border-radius: 8px; 
             cursor: pointer; 
-            font-size: 16px; 
             font-weight: bold;
-            transition: all 0.3s;
-        }
-        button:hover { 
-            background-color: #0056b3; 
-            transform: translateY(-2px);
+            transition: 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        #updateBtn { background-color: var(--success-color); }
-        #updateBtn:hover { background-color: #218838; }
-
-        .status { 
-            color: #94a3b8; 
-            font-size: 0.9em; 
-            margin-bottom: 15px; 
-            display: inline-block;
-            padding: 5px 12px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 20px;
-        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button.secondary { background-color: #444; }
 
         .admin-badge {
-            color: #fb7185;
-            font-size: 14px;
-            display: block;
+            background: rgba(229, 9, 20, 0.1);
+            color: var(--primary-color);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: inline-block;
             margin-bottom: 15px;
-            background: rgba(251, 113, 133, 0.1);
-            padding: 10px;
-            border-radius: 8px;
+            border: 1px solid var(--primary-color);
         }
 
-        #loginSection, #adminSection {
-            animation: fadeIn 0.5s ease;
-        }
+        #adminSection { display: none; }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* أنيميشن بسيط */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .live-dot {
+            height: 8px;
+            width: 8px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 1.5s infinite;
         }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>البث المباشر المشترك</h2>
-        <span class="status" id="connectionStatus">جاري الاتصال بالقاعدة...</span>
-        <div class="video-container">
-            <video id="myPlayer" controls autoplay playsinline></video>
-        </div>
-    </div>
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 30px;">
+            <i class="fas fa-play-circle" style="color: var(--primary-color);"></i> StreamSync Pro
+        </h2>
 
-    <div class="card">
-        <div id="loginSection">
-            <h3>إدارة الفيديو والمزامنة</h3>
-            <input type="password" id="passwordInput" placeholder="أدخل كلمة السر للإدارة">
-            <button id="loginBtn">دخول المسؤول</button>
+        <div class="video-wrapper">
+            <video id="myPlayer" controls playsinline></video>
+        </div>
+        <div class="status-bar">
+            <div id="connectionStatus" class="status-online">
+                <span class="live-dot"></span> جاري المزامنة...
+            </div>
+            <div class="viewer-count">
+                <i class="fas fa-users"></i> وضع المشاهدة الجماعية
+            </div>
         </div>
 
-        <div id="adminSection" style="display: none;">
-            <span class="admin-badge">🔴 وضع التحكم: أنت الآن تتحكم في أجهزة الجميع</span>
-            <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو أو البث (MP4/M3U8)">
-            <button id="updateBtn">تحديث الرابط عند الكل</button>
-            <div style="margin-top: 15px;">
-                <button onclick="location.reload()" style="background-color: #475569; font-size: 14px; width: auto;">تسجيل خروج</button>
+        <div class="card">
+            <div id="loginSection">
+                <h3 style="margin-top:0">لوحة التحكم بالبث</h3>
+                <p style="color: #aaa; font-size: 14px;">يجب تسجيل الدخول للتحكم في الفيديو لدى جميع المشاهدين.</p>
+                <div class="input-group">
+                    <input type="password" id="passwordInput" placeholder="أدخل كلمة السر">
+                    <button id="loginBtn">دخول</button>
+                </div>
+            </div>
+
+            <div id="adminSection">
+                <span class="admin-badge"><i class="fas fa-user-shield"></i> وضع المسؤول نشط</span>
+                <div class="input-group">
+                    <input type="text" id="videoUrl" placeholder="رابط الفيديو (Direct Link / M3U8)">
+                    <button id="updateBtn"><i class="fas fa-sync"></i> تحديث الكل</button>
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button class="secondary" onclick="syncForce()"><i class="fas fa-bullhorn"></i> إعادة مزامنة إجبارية</button>
+                    <button class="secondary" onclick="location.reload()" style="background: transparent; border: 1px solid #444;">خروج</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        /* الجزء الخاص بالبرمجة بقي كما هو لضمان عدم تعطل المزامنة */
+        // 1. إعدادات Firebase
         var firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -169,94 +200,115 @@
         };
 
         firebase.initializeApp(firebaseConfig);
-        var db = firebase.database();
-        var videoRef = db.ref('sharedVideo');
-        var videoElement = document.getElementById('myPlayer');
-        var hls = new Hls();
-        var isAdmin = false;
+        const db = firebase.database();
+        const videoRef = db.ref('sharedVideo');
+        const videoElement = document.getElementById('myPlayer');
+        let hls = new Hls();
+        let isAdmin = false;
+        let isInitialLoad = true;
 
+        // تشغيل الوسائط
         function playMedia(url) {
             if (!url) return;
-            if (Hls.isSupported() && (url.includes('m3u8') || !url.endsWith('.mp4'))) {
-                hls.destroy();
-                hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(videoElement);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    videoElement.play().catch(function(e){});
-                });
+            if (url.includes('m3u8') || !url.endsWith('.mp4')) {
+                if (Hls.isSupported()) {
+                    hls.destroy();
+                    hls = new Hls();
+                    hls.loadSource(url);
+                    hls.attachMedia(videoElement);
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => videoElement.play().catch(()=>{}));
+                }
             } else {
                 videoElement.src = url;
-                videoElement.play().catch(function(e){});
+                videoElement.play().catch(()=>{});
             }
         }
 
-        videoRef.on('value', function(snapshot) {
-            var data = snapshot.val();
-            if (data && data.url) {
-                if (videoElement.dataset.currentSrc !== data.url) {
-                    videoElement.dataset.currentSrc = data.url;
-                    playMedia(data.url);
-                }
-                
-                if (!isAdmin) {
-                    if (data.paused && !videoElement.paused) {
-                        videoElement.pause();
-                    } else if (!data.paused && videoElement.paused) {
-                        videoElement.play().catch(function(){});
-                    }
+        // استقبال البيانات من Firebase
+        videoRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
 
-                    if (Math.abs(videoElement.currentTime - data.currentTime) > 0.5) {
-                        videoElement.currentTime = data.currentTime;
-                    }
-                }
-                document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
-                document.getElementById('connectionStatus').style.color = "#4ade80";
+            // تحديث الرابط إذا تغير
+            if (videoElement.dataset.currentSrc !== data.url) {
+                videoElement.dataset.currentSrc = data.url;
+                playMedia(data.url);
             }
+
+            // المزامنة للمشاهدين فقط
+            if (!isAdmin) {
+                // مزامنة حالة التشغيل
+                if (data.paused && !videoElement.paused) {
+                    videoElement.pause();
+                } else if (!data.paused && videoElement.paused) {
+                    videoElement.play().catch(()=>{});
+                }
+
+                // مزامنة الوقت (إذا كان الفرق أكبر من ثانية واحدة)
+                const timeDiff = Math.abs(videoElement.currentTime - data.currentTime);
+                if (timeDiff > 1.2) {
+                    videoElement.currentTime = data.currentTime;
+                }
+            }
+            
+            document.getElementById('connectionStatus').innerHTML = '<span class="live-dot" style="background-color:#00d1b2"></span> متصل ومزامن ✅';
         });
 
+        // إرسال الحالة (للأدمن)
         function broadcastStatus() {
             if (isAdmin) {
                 videoRef.update({
                     currentTime: videoElement.currentTime,
                     paused: videoElement.paused,
-                    lastAction: Date.now()
+                    timestamp: Date.now()
                 });
             }
         }
 
+        // أحداث الفيديو للأدمن
         videoElement.addEventListener('play', broadcastStatus);
         videoElement.addEventListener('pause', broadcastStatus);
         videoElement.addEventListener('seeking', broadcastStatus);
-        videoElement.addEventListener('seeked', broadcastStatus);
 
-        setInterval(function() {
+        // تحديث دوري ذكي (كل ثانية للأدمن)
+        setInterval(() => {
             if (isAdmin && !videoElement.paused) {
                 broadcastStatus();
             }
-        }, 300);
+        }, 1000);
 
-        document.getElementById('loginBtn').addEventListener('click', function() {
-            if (document.getElementById('passwordInput').value === "1234") {
+        // تسجيل الدخول
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            const pass = document.getElementById('passwordInput').value;
+            if (pass === "1234") { // كلمة السر
                 isAdmin = true;
                 document.getElementById('loginSection').style.display = 'none';
                 document.getElementById('adminSection').style.display = 'block';
+                alert("مرحباً بك أيها المسؤول!");
             } else {
                 alert("كلمة السر خاطئة!");
             }
         });
 
-        document.getElementById('updateBtn').addEventListener('click', function() {
-            var url = document.getElementById('videoUrl').value;
+        // تحديث الرابط
+        document.getElementById('updateBtn').addEventListener('click', () => {
+            const url = document.getElementById('videoUrl').value;
             if (url && isAdmin) {
                 videoRef.set({
                     url: url,
                     currentTime: 0,
                     paused: false,
-                    lastAction: Date.now()
+                    timestamp: Date.now()
                 });
             }
         });
+
+        function syncForce() {
+            if(isAdmin) {
+                broadcastStatus();
+                alert("تم إرسال إشارة مزامنة إجبارية للجميع");
+            }
+        }
     </script>
 </body>
 </html>
