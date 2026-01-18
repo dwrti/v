@@ -10,14 +10,69 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; background-color: #f4f4f9; margin: 0; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 90%; max-width: 600px; text-align: center; margin-bottom: 20px; }
-        input { width: 85%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
-        button { padding: 12px 25px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        video { width: 100%; border-radius: 8px; background: #000; min-height: 250px; }
-        #adminSection { display: none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; }
-        .status { color: #666; font-size: 0.9em; margin-bottom: 10px; font-weight: bold; }
-        .admin-badge { color: #d9534f; font-size: 12px; display: block; margin-bottom: 10px; }
+        body { 
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding-top: 50px; 
+            background-color: #f4f4f9; 
+            margin: 0;
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            width: 90%; 
+            max-width: 600px; 
+            text-align: center; 
+            margin-bottom: 20px; 
+        }
+        input { 
+            width: 85%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 16px; 
+        }
+        button { 
+            padding: 12px 25px; 
+            background-color: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold;
+        }
+        button:hover { background-color: #218838; }
+        
+        video { 
+            width: 100%; 
+            border-radius: 8px; 
+            background: #000; 
+            min-height: 250px; 
+        }
+        #adminSection { 
+            display: none; 
+            margin-top: 20px; 
+            border-top: 2px solid #eee; 
+            padding-top: 20px; 
+        }
+        .status { 
+            color: #666; 
+            font-size: 0.9em; 
+            margin-bottom: 10px; 
+            font-weight: bold; 
+        }
+        .admin-badge {
+            color: #d9534f;
+            font-size: 12px;
+            display: block;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -25,7 +80,7 @@
     <div class="card">
         <h2>البث المباشر المشترك</h2>
         <p class="status" id="connectionStatus">جاري الاتصال بالقاعدة...</p>
-        <video id="myPlayer" controls autoplay playsinline webkit-playsinline muted></video>
+        <video id="myPlayer" controls autoplay playsinline></video>
     </div>
 
     <div class="card">
@@ -48,7 +103,7 @@
     </div>
 
     <script>
-        // إعدادات Firebase الخاصة بك
+        // 1. إعدادات Firebase الخاصة بك (لم يتم لمسها)
         var firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -68,14 +123,9 @@
 
         function playMedia(url) {
             if (!url) return;
-            // حل مشكلة LG: إعادة بناء كائن Hls عند كل تغيير رابط
             if (Hls.isSupported() && (url.includes('m3u8') || !url.endsWith('.mp4'))) {
-                hls.destroy(); 
-                hls = new Hls({
-                    enableWorker: true,
-                    lowLatencyMode: true,
-                    backBufferLength: 30
-                });
+                hls.destroy();
+                hls = new Hls();
                 hls.loadSource(url);
                 hls.attachMedia(videoElement);
                 hls.on(Hls.Events.MANIFEST_PARSED, function() {
@@ -83,11 +133,11 @@
                 });
             } else {
                 videoElement.src = url;
-                videoElement.load(); // ضروري لتنشيط المحرك في الشاشة
                 videoElement.play().catch(function(e){});
             }
         }
 
+        // استقبال التحديثات اللحظية
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
             if (data && data.url) {
@@ -97,14 +147,15 @@
                 }
                 
                 if (!isAdmin) {
+                    // مزامنة حالة الإيقاف والتشغيل (فورية)
                     if (data.paused && !videoElement.paused) {
                         videoElement.pause();
                     } else if (!data.paused && videoElement.paused) {
                         videoElement.play().catch(function(){});
                     }
 
-                    // زيادة هامش المزامنة لـ LG (0.5 ثانية تسبب تقطيع، خليها 1.5)
-                    if (Math.abs(videoElement.currentTime - data.currentTime) > 1.5) {
+                    // مزامنة الوقت بدقة عالية (إذا زاد الفرق عن 0.5 ثانية)
+                    if (Math.abs(videoElement.currentTime - data.currentTime) > 0.5) {
                         videoElement.currentTime = data.currentTime;
                     }
                 }
@@ -112,6 +163,7 @@
             }
         });
 
+        // إرسال الأوامر (للإدارة فقط)
         function broadcastStatus() {
             if (isAdmin) {
                 videoRef.update({
@@ -122,18 +174,20 @@
             }
         }
 
+        // ربط الأحداث لضمان اللحظية المطلقة
         videoElement.addEventListener('play', broadcastStatus);
         videoElement.addEventListener('pause', broadcastStatus);
         videoElement.addEventListener('seeking', broadcastStatus);
         videoElement.addEventListener('seeked', broadcastStatus);
 
-        // تعديل: رفع الوقت لـ 1000ms لتقليل الضغط على معالج التلفزيون
+        // تحديث دوري "سريع جداً" للأدمن لضمان عدم حدوث لاق
         setInterval(function() {
             if (isAdmin && !videoElement.paused) {
                 broadcastStatus();
             }
-        }, 1000); 
+        }, 300); // تحديث كل 300ms لضمان المزامنة اللحظية
 
+        // تسجيل الدخول
         document.getElementById('loginBtn').addEventListener('click', function() {
             if (document.getElementById('passwordInput').value === "1234") {
                 isAdmin = true;
@@ -144,6 +198,7 @@
             }
         });
 
+        // تحديث الرابط
         document.getElementById('updateBtn').addEventListener('click', function() {
             var url = document.getElementById('videoUrl').value;
             if (url && isAdmin) {
