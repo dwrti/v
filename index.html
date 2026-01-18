@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المزامنة الاحترافي</title>
+    <title>مشغل المزامنة الاحترافي - النسخة الكاملة</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -11,49 +11,55 @@
 
     <style>
         body { 
-            font-family: sans-serif; 
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
+            padding: 20px;
             padding-top: 50px; 
             background-color: #f4f4f9; 
             margin: 0;
+            direction: rtl;
         }
         .card { 
             background: white; 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
             width: 90%; 
-            max-width: 600px; 
+            max-width: 700px; 
             text-align: center; 
             margin-bottom: 20px; 
         }
         input { 
-            width: 85%; 
+            width: 90%; 
             padding: 12px; 
             margin: 10px 0; 
-            border: 1px solid #ccc; 
-            border-radius: 4px; 
+            border: 1px solid #ddd; 
+            border-radius: 6px; 
             font-size: 16px; 
+            outline: none;
         }
+        input:focus { border-color: #28a745; }
         button { 
-            padding: 12px 25px; 
+            padding: 12px 30px; 
             background-color: #28a745; 
             color: white; 
             border: none; 
-            border-radius: 4px; 
+            border-radius: 6px; 
             cursor: pointer; 
             font-size: 16px; 
             font-weight: bold;
+            transition: 0.3s;
         }
-        button:hover { background-color: #218838; }
+        button:hover { background-color: #218838; transform: translateY(-2px); }
         
         video { 
             width: 100%; 
             border-radius: 8px; 
             background: #000; 
-            min-height: 250px; 
+            min-height: 300px; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
         #adminSection { 
             display: none; 
@@ -62,16 +68,26 @@
             padding-top: 20px; 
         }
         .status { 
-            color: #666; 
-            font-size: 0.9em; 
-            margin-bottom: 10px; 
-            font-weight: bold; 
+            color: #555; 
+            font-size: 0.95em; 
+            margin-bottom: 15px; 
+            background: #e9ecef;
+            padding: 8px;
+            border-radius: 5px;
+            display: inline-block;
         }
         .admin-badge {
             color: #d9534f;
-            font-size: 12px;
+            font-size: 14px;
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
     </style>
 </head>
@@ -79,7 +95,7 @@
 
     <div class="card">
         <h2>البث المباشر المشترك</h2>
-        <p class="status" id="connectionStatus">جاري الاتصال بالقاعدة...</p>
+        <div class="status" id="connectionStatus">جاري فحص الاتصال...</div>
         <video id="myPlayer" controls autoplay playsinline></video>
     </div>
 
@@ -92,10 +108,10 @@
         </div>
 
         <div id="adminSection">
-            <span class="admin-badge">🔴 أنت الآن تتحكم في أجهزة الجميع (وضع الإدارة)</span>
-            <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو أو البث (MP4/M3U8)">
+            <span class="admin-badge">🔴 وضع التحكم الكامل (أنت الأدمن)</span>
+            <input type="text" id="videoUrl" placeholder="رابط الفيديو (MP4 / M3U8)">
             <br>
-            <button id="updateBtn">تحديث الرابط عند الكل</button>
+            <button id="updateBtn">تحديث الرابط عند الجميع</button>
             <div style="margin-top: 15px;">
                 <button onclick="location.reload()" style="background-color: #6c757d; font-size: 12px;">تسجيل خروج</button>
             </div>
@@ -103,7 +119,7 @@
     </div>
 
     <script>
-        // 1. إعدادات Firebase (تم الحفاظ عليها بالكامل)
+        // 1. إعدادات Firebase
         var firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -121,15 +137,35 @@
         var hls = new Hls();
         var isAdmin = false;
 
+        // وظيفة تشغيل الميديا مع دعم HLS المطور
         function playMedia(url) {
             if (!url) return;
             if (Hls.isSupported() && (url.includes('m3u8') || !url.endsWith('.mp4'))) {
                 hls.destroy();
-                hls = new Hls();
+                hls = new Hls({
+                    manifestLoadingMaxRetry: 10,
+                    levelLoadingMaxRetry: 10
+                });
                 hls.loadSource(url);
                 hls.attachMedia(videoElement);
                 hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    videoElement.play().catch(function(e){});
+                    videoElement.play().catch(function(e){ console.log("البث يحتاج تفاعل يدوي أول مرة"); });
+                });
+                
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                hls.destroy();
+                                break;
+                        }
+                    }
                 });
             } else {
                 videoElement.src = url;
@@ -137,35 +173,37 @@
             }
         }
 
-        // استقبال التحديثات اللحظية (النسخة المحدثة لضمان دقة المزامنة)
+        // استقبال التحديثات اللحظية
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
             if (data && data.url) {
+                // تغيير الرابط إذا كان مختلفاً
                 if (videoElement.dataset.currentSrc !== data.url) {
                     videoElement.dataset.currentSrc = data.url;
                     playMedia(data.url);
                 }
                 
+                // المزامنة للمشاهدين فقط
                 if (!isAdmin) {
-                    // مزامنة حالة الإيقاف والتشغيل
+                    // مزامنة الإيقاف والتشغيل
                     if (data.paused && !videoElement.paused) {
                         videoElement.pause();
                     } else if (!data.paused && videoElement.paused) {
                         videoElement.play().catch(function(){});
                     }
 
-                    // --- تحديث رقم 1: مزامنة الوقت السلسة ---
-                    // تم رفع حد الفرق إلى 1.5 ثانية لتعويض تأخير الشبكة ومنع التقطيع
+                    // المزامنة الزمنية الدقيقة (1.5 ثانية كحد مسموح)
                     var timeDifference = Math.abs(videoElement.currentTime - data.currentTime);
                     if (timeDifference > 1.5) {
                         videoElement.currentTime = data.currentTime;
                     }
                 }
-                document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
+                document.getElementById('connectionStatus').innerText = "متصل بالبث المباشر ✅";
+                document.getElementById('connectionStatus').style.color = "green";
             }
         });
 
-        // إرسال الأوامر (للإدارة فقط)
+        // إرسال البيانات (للأدمن فقط)
         function broadcastStatus() {
             if (isAdmin) {
                 videoRef.update({
@@ -176,30 +214,32 @@
             }
         }
 
+        // مراقبة أحداث المشغل
         videoElement.addEventListener('play', broadcastStatus);
         videoElement.addEventListener('pause', broadcastStatus);
         videoElement.addEventListener('seeking', broadcastStatus);
         videoElement.addEventListener('seeked', broadcastStatus);
 
-        // تحديث دوري سريع جداً للأدمن
+        // التحديث الدوري السريع (للحفاظ على الدقة العالية)
         setInterval(function() {
             if (isAdmin && !videoElement.paused) {
                 broadcastStatus();
             }
-        }, 300);
+        }, 500); // 500ms توازن بين الدقة واستهلاك البيانات
 
-        // تسجيل الدخول
+        // تسجيل دخول الأدمن
         document.getElementById('loginBtn').addEventListener('click', function() {
             if (document.getElementById('passwordInput').value === "1234") {
                 isAdmin = true;
                 document.getElementById('loginSection').style.display = 'none';
                 document.getElementById('adminSection').style.display = 'block';
+                document.getElementById('connectionStatus').innerText = "وضع الإدارة مفعل 👑";
             } else {
                 alert("كلمة السر خاطئة!");
             }
         });
 
-        // تحديث الرابط
+        // زر تحديث الرابط
         document.getElementById('updateBtn').addEventListener('click', function() {
             var url = document.getElementById('videoUrl').value;
             if (url && isAdmin) {
