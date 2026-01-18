@@ -1,59 +1,62 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل روابط الماغنت</title>
+    <title>Magnet Player Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f4f4f9; }
-        #video-container { margin-top: 20px; background: #000; min-height: 300px; display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; max-width: 600px; }
-        input { width: 80%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        body { background: #1a1a1a; color: white; font-family: sans-serif; text-align: center; }
+        #video-player { width: 95%; max-width: 800px; margin: 20px auto; border: 2px solid #333; }
+        .info { font-size: 14px; color: #aaa; margin-top: 10px; }
+        #log { font-family: monospace; font-size: 12px; color: #0f0; }
     </style>
 </head>
 <body>
 
-    <h2>مشغل فيديو Magnet Link</h2>
-    <input type="text" id="magnetLink" placeholder="أدخل رابط الماغنت هنا...">
-    <br>
-    <button onclick="startDownload()">تشغيل الآن</button>
-
-    <div id="status"></div>
-    <div id="video-container">
-        </div>
+    <h3>مشغل الماغنت المتطور</h3>
+    <div id="video-player">
+        <p id="msg">انتظار إضافة الرابط...</p>
+    </div>
+    
+    <div class="info">
+        السرعة: <span id="speed">0</span> MB/s | 
+        الموزعين: <span id="peers">0</span>
+    </div>
+    <div id="log"></div>
 
     <script>
         const client = new WebTorrent();
+        
+        // الرابط اللي أرسلته
+        const myMagnet = "magnet:?xt=urn:btih:D745D479E6CD56D5F7DDB2F35970EF7FE1311788&dn=Zootopia%202%202025%201080p%20Multi%20READNFO%20HEVC%20x265-RMTeam&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com";
 
-        function startDownload() {
-            const magnetURI = document.getElementById('magnetLink').value;
-            const status = document.getElementById('status');
-            const container = document.getElementById('video-container');
+        // إضافة تراكرز WebSockets اختيارية لدعم المتصفح
+        const trackers = [
+            'wss://tracker.btorrent.xyz',
+            'wss://tracker.openwebtorrent.com',
+            'wss://tracker.fastcast.nz'
+        ];
 
-            if (!magnetURI) {
-                alert("يرجى إدخال رابط صالح");
-                return;
-            }
-
-            status.innerText = 'جاري الاتصال بالموزعين (Peers)... قد يستغرق الأمر ثواني';
-
-            client.add(magnetURI, function (torrent) {
-                // البحث عن ملف فيديو داخل التورنت
-                const file = torrent.files.find(function (file) {
-                    return file.name.endsWith('.mp4') || file.name.endsWith('.webm') || file.name.endsWith('.mkv');
-                });
-
+        function start() {
+            document.getElementById('msg').innerText = "جاري البحث عن Peers يدعمون المتصفح...";
+            
+            client.add(myMagnet, { announce: trackers }, function (torrent) {
+                const file = torrent.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv'));
+                
                 if (file) {
-                    status.innerText = 'جاري تشغيل: ' + file.name;
-                    // عرض الفيديو في المتصفح
-                    file.appendTo('#video-container', { autoplay: true, muted: false });
-                } else {
-                    status.innerText = 'لم يتم العثور على ملف فيديو مدعوم.';
+                    document.getElementById('video-player').innerHTML = '';
+                    file.appendTo('#video-player', { autoplay: true, controls: true });
                 }
+
+                torrent.on('download', () => {
+                    document.getElementById('speed').innerText = (torrent.downloadSpeed / (1024 * 1024)).toFixed(2);
+                    document.getElementById('peers').innerText = torrent.numPeers;
+                });
             });
         }
+
+        // تشغيل تلقائي
+        start();
     </script>
 </body>
 </html>
