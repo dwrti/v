@@ -3,60 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الفيديو المظلم</title>
+    <title>مشغل الفيديو المتزامن</title>
     <style>
-        /* إعدادات الخلفية السوداء */
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: sans-serif; 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
-            background-color: #000000; /* خلفية سوداء */
-            color: #ffffff; 
+            background-color: #000; 
+            color: #fff; 
             padding: 20px; 
-            margin: 0;
-            min-height: 100vh;
-            justify-content: center;
+            min-height: 100vh; 
+            justify-content: center; 
+            margin: 0; 
         }
-
         .container { 
-            background: #1a1a1a; /* لون رمادي غامق جداً للحاوية */
+            background: #1a1a1a; 
             padding: 25px; 
             border-radius: 15px; 
-            box-shadow: 0 8px 32px rgba(255, 255, 255, 0.05); 
             width: 100%; 
             max-width: 650px; 
-            border: 1px solid #333;
+            border: 1px solid #333; 
+            text-align: center; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-
         video { 
             width: 100%; 
             border-radius: 10px; 
             background: #000; 
             margin-bottom: 20px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-
         .controls { 
             display: flex; 
             flex-direction: column; 
             gap: 15px; 
         }
-
         input { 
             padding: 14px; 
             border: 1px solid #444; 
             border-radius: 8px; 
-            font-size: 16px; 
-            background-color: #222; 
+            background: #222; 
             color: #fff; 
-            outline: none;
+            outline: none; 
+            text-align: center;
         }
-
-        input:focus {
-            border-color: #007AFF;
-        }
-
         button { 
             padding: 14px; 
             background-color: #007AFF; 
@@ -64,23 +54,12 @@
             border: none; 
             border-radius: 8px; 
             cursor: pointer; 
-            font-size: 16px; 
-            font-weight: bold;
-            transition: 0.3s; 
+            font-weight: bold; 
+            transition: 0.3s;
         }
-
-        button:hover { 
-            background-color: #0051a8; 
-            transform: translateY(-1px);
-        }
-
-        .error { 
-            color: #ff453a; 
-            font-size: 14px; 
-            margin-top: 5px; 
-            display: none; 
-            text-align: center;
-        }
+        button:hover { background-color: #005bbd; }
+        .status { font-size: 12px; color: #555; margin-top: 15px; }
+        .error { color: #ff453a; display: none; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -92,44 +71,84 @@
     </video>
 
     <div class="controls">
+        <p id="errorMsg" class="error">كلمة السر خاطئة!</p>
         <input type="password" id="adminPass" placeholder="أدخل كلمة سر الأدمن">
-        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو هنا" style="display: none;">
-        <button id="actionBtn" onclick="checkAccess()">التحقق من كلمة السر</button>
-        <p id="errorMsg" class="error">كلمة السر خاطئة، حاول مجدداً.</p>
+        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو المباشر هنا" style="display: none;">
+        <button id="actionBtn">التحقق من كلمة السر</button>
     </div>
+    <p class="status" id="connectionStatus">جاري الاتصال بقاعدة البيانات...</p>
 </div>
 
-<script>
-    // كلمة السر هي 123 (تقدر تغيرها من هنا)
-    const ADMIN_PASSWORD = "123"; 
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    function checkAccess() {
-        const passInput = document.getElementById('adminPass');
-        const urlInput = document.getElementById('videoUrl');
-        const btn = document.getElementById('actionBtn');
-        const error = document.getElementById('errorMsg');
-        const video = document.getElementById('myVideo');
+    const firebaseConfig = {
+      apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+      authDomain: "videos-5e336.firebaseapp.com",
+      databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+      projectId: "videos-5e336",
+      storageBucket: "videos-5e336.firebasestorage.app",
+      messagingSenderId: "300218651134",
+      appId: "1:300218651134:web:4bd24df8e555e62828f0af",
+      measurementId: "G-2H4SJNLD1R"
+    };
 
+    // تهيئة Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getDatabase(app);
+    const videoRef = ref(db, 'sharedVideo');
+
+    const ADMIN_PASSWORD = "123"; // غير كلمة السر هنا
+
+    const passInput = document.getElementById('adminPass');
+    const urlInput = document.getElementById('videoUrl');
+    const btn = document.getElementById('actionBtn');
+    const error = document.getElementById('errorMsg');
+    const video = document.getElementById('myVideo');
+    const statusText = document.getElementById('connectionStatus');
+
+    // 1. الاستماع للمزامنة اللحظية
+    onValue(videoRef, (snapshot) => {
+        const data = snapshot.val();
+        statusText.innerText = "الحالة: متصل ومزامن";
+        if (data && data.url) {
+            if (video.src !== data.url) {
+                video.src = data.url;
+                video.load();
+                // محاولة التشغيل التلقائي (قد يحظرها سفاري بدون تفاعل)
+                video.play().catch(() => console.log("بانتظار تفاعل المستخدم للتشغيل"));
+            }
+        }
+    });
+
+    // 2. معالجة الضغط على الزر
+    btn.addEventListener('click', () => {
         if (btn.innerText === "التحقق من كلمة السر") {
             if (passInput.value === ADMIN_PASSWORD) {
                 passInput.style.display = "none";
                 urlInput.style.display = "block";
-                btn.innerText = "تشغيل الفيديو الآن";
+                btn.innerText = "تحديث الفيديو للجميع";
                 error.style.display = "none";
-                urlInput.focus();
             } else {
                 error.style.display = "block";
             }
-        } 
-        else {
-            const url = urlInput.value.trim();
-            if (url !== "") {
-                video.src = url;
-                video.load();
-                video.play();
+        } else {
+            const newUrl = urlInput.value.trim();
+            if (newUrl !== "") {
+                set(videoRef, { 
+                    url: newUrl,
+                    timestamp: Date.now() 
+                }).then(() => {
+                    alert("تم إرسال الرابط لجميع المتصلين");
+                }).catch((err) => {
+                    alert("خطأ في قاعدة البيانات: تأكد من إعدادات Rules");
+                });
             }
         }
-    }
+    });
 </script>
 
 </body>
