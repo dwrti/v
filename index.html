@@ -3,286 +3,214 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StreamSync Pro | المشاهدة الجماعية والدردشة</title>
+    <title>مشغل المزامنة الاحترافي</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        :root {
-            --primary-color: #e50914;
-            --bg-color: #0b0c10;
-            --card-bg: #1f2833;
-            --text-main: #ffffff;
-            --text-dim: #c5c6c7;
-            --accent: #66fcf1;
-        }
-
         body { 
-            font-family: 'Cairo', sans-serif; 
-            background-color: var(--bg-color); 
-            color: var(--text-main);
-            margin: 0; padding: 0;
-            display: flex; flex-direction: column; height: 100vh;
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding-top: 50px; 
+            background-color: #f4f4f9; 
+            margin: 0;
         }
-
-        /* تخطيط الصفحة الرئيسي */
-        .main-layout {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            padding: 20px;
-            height: calc(100vh - 40px);
+        .card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            width: 90%; 
+            max-width: 600px; 
+            text-align: center; 
+            margin-bottom: 20px; 
         }
-
-        /* منطقة الفيديو */
-        .video-container {
-            flex: 3;
-            min-width: 350px;
-            display: flex;
-            flex-direction: column;
+        input { 
+            width: 85%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 16px; 
         }
-
-        .video-wrapper {
-            position: relative;
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid #444;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        }
-
-        video { width: 100%; aspect-ratio: 16/9; display: block; }
-
-        /* منطقة الدردشة */
-        .chat-container {
-            flex: 1;
-            min-width: 300px;
-            background: var(--card-bg);
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            border: 1px solid #444;
-            max-height: 85vh;
-        }
-
-        .chat-header {
-            padding: 15px;
-            border-bottom: 1px solid #444;
-            font-weight: bold;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        #chatMessages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            font-size: 14px;
-        }
-
-        .msg { margin-bottom: 10px; line-height: 1.4; }
-        .msg b { color: var(--accent); }
-        .msg.system { color: #888; font-style: italic; font-size: 12px; }
-
-        .chat-input {
-            padding: 10px;
-            display: flex;
-            gap: 5px;
-            border-top: 1px solid #444;
-        }
-
-        /* أدوات الإدارة */
-        .admin-panel {
-            margin-top: 15px;
-            background: #161b22;
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px dashed var(--primary-color);
-        }
-
-        .hidden { display: none !important; }
-
-        /* أزرار ومدخلات */
-        input {
-            background: #0b0c10;
-            border: 1px solid #444;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 5px;
-            outline: none;
-        }
-
-        button {
-            cursor: pointer;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
+        button { 
+            padding: 12px 25px; 
+            background-color: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px; 
             font-weight: bold;
         }
-
-        .stats { font-size: 12px; color: var(--accent); margin-top: 5px; }
-
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+        button:hover { background-color: #218838; }
+        
+        video { 
+            width: 100%; 
+            border-radius: 8px; 
+            background: #000; 
+            min-height: 250px; 
+        }
+        #adminSection { 
+            display: none; 
+            margin-top: 20px; 
+            border-top: 2px solid #eee; 
+            padding-top: 20px; 
+        }
+        .status { 
+            color: #666; 
+            font-size: 0.9em; 
+            margin-bottom: 10px; 
+            font-weight: bold; 
+        }
+        .admin-badge {
+            color: #d9534f;
+            font-size: 12px;
+            display: block;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
 
-<div class="main-layout">
-    <div class="video-container">
-        <div class="video-wrapper">
-            <video id="myPlayer" controls playsinline></video>
-        </div>
-        
-        <div class="stats">
-            <span id="viewCount"><i class="fas fa-eye"></i> جاري الحساب...</span> | 
-            <span id="syncStatus">متصل</span>
+    <div class="card">
+        <h2>البث المباشر المشترك</h2>
+        <p class="status" id="connectionStatus">جاري الاتصال بالقاعدة...</p>
+        <video id="myPlayer" controls autoplay playsinline></video>
+    </div>
+
+    <div class="card">
+        <div id="loginSection">
+            <h3>إدارة الفيديو والمزامنة</h3>
+            <input type="password" id="passwordInput" placeholder="أدخل كلمة السر للإدارة">
+            <br>
+            <button id="loginBtn">دخول المسؤول</button>
         </div>
 
-        <div id="loginArea" style="margin-top:10px;">
-            <input type="password" id="adminPass" placeholder="كلمة سر الإدارة">
-            <button onclick="checkAdmin()">دخول المسؤول</button>
-        </div>
-
-        <div id="adminControls" class="admin-panel hidden">
-            <div style="margin-bottom:10px; color: var(--primary-color); font-weight:bold;">لوحة التحكم بالبث</div>
-            <input type="text" id="newVideoUrl" placeholder="رابط MP4 أو M3U8" style="width:70%">
-            <button onclick="updateVideo()">تحديث الرابط</button>
-            <button onclick="forceSyncAll()" style="background:#444">مزامنة إجبارية</button>
+        <div id="adminSection">
+            <span class="admin-badge">🔴 أنت الآن تتحكم في أجهزة الجميع (وضع الإدارة)</span>
+            <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو أو البث (MP4/M3U8)">
+            <br>
+            <button id="updateBtn">تحديث الرابط عند الكل</button>
+            <div style="margin-top: 15px;">
+                <button onclick="location.reload()" style="background-color: #6c757d; font-size: 12px;">تسجيل خروج</button>
+            </div>
         </div>
     </div>
 
-    <div class="chat-container">
-        <div class="chat-header">
-            <span>الدردشة المباشرة</span>
-            <i class="fas fa-comments"></i>
-        </div>
-        <div id="chatMessages"></div>
-        <div class="chat-input">
-            <input type="text" id="userName" placeholder="اسمك" style="width:60px">
-            <input type="text" id="chatMsg" placeholder="اكتب رسالة..." style="flex:1">
-            <button onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
-        </div>
-    </div>
-</div>
+    <script>
+        // 1. إعدادات Firebase (تم الحفاظ عليها بالكامل)
+        var firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        };
 
-<script>
-    // 1. Firebase Configuration
-    const firebaseConfig = {
-        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-        authDomain: "videos-5e336.firebaseapp.com",
-        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-        projectId: "videos-5e336",
-        storageBucket: "videos-5e336.firebasestorage.app",
-        messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-    };
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+        var videoRef = db.ref('sharedVideo');
+        var videoElement = document.getElementById('myPlayer');
+        var hls = new Hls();
+        var isAdmin = false;
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const videoRef = db.ref('sharedVideo');
-    const chatRef = db.ref('chat').limitToLast(50);
-    const presenceRef = db.ref('presence');
-    
-    const player = document.getElementById('myPlayer');
-    let hls = new Hls();
-    let isAdmin = false;
-
-    // --- نظام المشاهدين اللحظي ---
-    const myPresence = presenceRef.push();
-    myPresence.onDisconnect().remove();
-    myPresence.set(true);
-
-    presenceRef.on('value', snap => {
-        document.getElementById('viewCount').innerHTML = `<i class="fas fa-eye"></i> مشاهدات الآن: ${snap.numChildren()}`;
-    });
-
-    // --- نظام الفيديو والمزامنة ---
-    function loadVideo(url) {
-        if (!url) return;
-        if (url.includes('m3u8')) {
-            if (Hls.isSupported()) {
-                hls.destroy(); hls = new Hls();
-                hls.loadSource(url); hls.attachMedia(player);
-            }
-        } else {
-            player.src = url;
-        }
-    }
-
-    videoRef.on('value', snap => {
-        const data = snap.val();
-        if (!data) return;
-
-        if (player.dataset.src !== data.url) {
-            player.dataset.src = data.url;
-            loadVideo(data.url);
-        }
-
-        if (!isAdmin) {
-            if (data.paused && !player.paused) player.pause();
-            if (!data.paused && player.paused) player.play().catch(()=>{});
-            if (Math.abs(player.currentTime - data.time) > 1.5) {
-                player.currentTime = data.time;
+        function playMedia(url) {
+            if (!url) return;
+            if (Hls.isSupported() && (url.includes('m3u8') || !url.endsWith('.mp4'))) {
+                hls.destroy();
+                hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(videoElement);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    videoElement.play().catch(function(e){});
+                });
+            } else {
+                videoElement.src = url;
+                videoElement.play().catch(function(e){});
             }
         }
-    });
 
-    function broadcast() {
-        if (isAdmin) {
-            videoRef.update({
-                time: player.currentTime,
-                paused: player.paused,
-                lastUpdate: Date.now()
-            });
+        // استقبال التحديثات اللحظية (النسخة المحدثة لضمان دقة المزامنة)
+        videoRef.on('value', function(snapshot) {
+            var data = snapshot.val();
+            if (data && data.url) {
+                if (videoElement.dataset.currentSrc !== data.url) {
+                    videoElement.dataset.currentSrc = data.url;
+                    playMedia(data.url);
+                }
+                
+                if (!isAdmin) {
+                    // مزامنة حالة الإيقاف والتشغيل
+                    if (data.paused && !videoElement.paused) {
+                        videoElement.pause();
+                    } else if (!data.paused && videoElement.paused) {
+                        videoElement.play().catch(function(){});
+                    }
+
+                    // --- تحديث رقم 1: مزامنة الوقت السلسة ---
+                    // تم رفع حد الفرق إلى 1.5 ثانية لتعويض تأخير الشبكة ومنع التقطيع
+                    var timeDifference = Math.abs(videoElement.currentTime - data.currentTime);
+                    if (timeDifference > 1.5) {
+                        videoElement.currentTime = data.currentTime;
+                    }
+                }
+                document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
+            }
+        });
+
+        // إرسال الأوامر (للإدارة فقط)
+        function broadcastStatus() {
+            if (isAdmin) {
+                videoRef.update({
+                    currentTime: videoElement.currentTime,
+                    paused: videoElement.paused,
+                    lastAction: Date.now()
+                });
+            }
         }
-    }
 
-    player.onplay = player.onpause = player.onseeking = broadcast;
-    setInterval(() => { if(isAdmin && !player.paused) broadcast(); }, 2000);
+        videoElement.addEventListener('play', broadcastStatus);
+        videoElement.addEventListener('pause', broadcastStatus);
+        videoElement.addEventListener('seeking', broadcastStatus);
+        videoElement.addEventListener('seeked', broadcastStatus);
 
-    // --- نظام الدردشة ---
-    function sendChat() {
-        const name = document.getElementById('userName').value || "مجهول";
-        const text = document.getElementById('chatMsg').value;
-        if (!text) return;
-        chatRef.parent.child('chat').push({ name, text, time: Date.now() });
-        document.getElementById('chatMsg').value = "";
-    }
+        // تحديث دوري سريع جداً للأدمن
+        setInterval(function() {
+            if (isAdmin && !videoElement.paused) {
+                broadcastStatus();
+            }
+        }, 300);
 
-    chatRef.on('child_added', snap => {
-        const msg = snap.val();
-        const div = document.createElement('div');
-        div.className = 'msg';
-        div.innerHTML = `<b>${msg.name}:</b> ${msg.text}`;
-        const container = document.getElementById('chatMessages');
-        container.appendChild(div);
-        container.scrollTop = container.scrollHeight;
-    });
+        // تسجيل الدخول
+        document.getElementById('loginBtn').addEventListener('click', function() {
+            if (document.getElementById('passwordInput').value === "1234") {
+                isAdmin = true;
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('adminSection').style.display = 'block';
+            } else {
+                alert("كلمة السر خاطئة!");
+            }
+        });
 
-    // --- وظائف المسؤول ---
-    function checkAdmin() {
-        if (document.getElementById('adminPass').value === "1234") {
-            isAdmin = true;
-            document.getElementById('loginArea').classList.add('hidden');
-            document.getElementById('adminControls').classList.remove('hidden');
-            chatRef.parent.child('chat').push({ name: "النظام", text: "دخل المسؤول إلى الغرفة", type: "system" });
-        }
-    }
-
-    function updateVideo() {
-        const url = document.getElementById('newVideoUrl').value;
-        if (url) videoRef.set({ url, time: 0, paused: false });
-    }
-
-    function forceSyncAll() {
-        if (isAdmin) broadcast();
-    }
-</script>
+        // تحديث الرابط
+        document.getElementById('updateBtn').addEventListener('click', function() {
+            var url = document.getElementById('videoUrl').value;
+            if (url && isAdmin) {
+                videoRef.set({
+                    url: url,
+                    currentTime: 0,
+                    paused: false,
+                    lastAction: Date.now()
+                });
+            }
+        });
+    </script>
 </body>
 </html>
