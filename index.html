@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StreamSync Pro | منصة المشاهدة الجماعية</title>
+    <title>StreamSync Pro | المشاهدة الجماعية والدردشة</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -12,303 +12,277 @@
 
     <style>
         :root {
-            --primary-color: #e50914; /* أحمر نيتفليكس */
-            --bg-color: #0f1014;
-            --card-bg: #1a1c23;
-            --text-color: #ffffff;
-            --accent-color: #00d1b2;
+            --primary-color: #e50914;
+            --bg-color: #0b0c10;
+            --card-bg: #1f2833;
+            --text-main: #ffffff;
+            --text-dim: #c5c6c7;
+            --accent: #66fcf1;
         }
 
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: 'Cairo', sans-serif; 
             background-color: var(--bg-color); 
-            color: var(--text-color);
-            margin: 0;
+            color: var(--text-main);
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; height: 100vh;
+        }
+
+        /* تخطيط الصفحة الرئيسي */
+        .main-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 20px;
+            height: calc(100vh - 40px);
+        }
+
+        /* منطقة الفيديو */
+        .video-container {
+            flex: 3;
+            min-width: 350px;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
         }
 
-        .container {
-            width: 100%;
-            max-width: 900px;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        /* تصميم المشغل */
         .video-wrapper {
             position: relative;
             background: #000;
-            border-radius: 15px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid #333;
+            border: 1px solid #444;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
 
-        video { 
-            width: 100%; 
-            display: block;
-            aspect-ratio: 16 / 9;
+        video { width: 100%; aspect-ratio: 16/9; display: block; }
+
+        /* منطقة الدردشة */
+        .chat-container {
+            flex: 1;
+            min-width: 300px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #444;
+            max-height: 85vh;
         }
 
-        /* شريط الحالة */
-        .status-bar {
+        .chat-header {
+            padding: 15px;
+            border-bottom: 1px solid #444;
+            font-weight: bold;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            background: var(--card-bg);
-            border-radius: 0 0 15px 15px;
-            font-size: 14px;
-            border: 1px solid #333;
-            border-top: none;
         }
 
-        .status-online { color: var(--accent-color); }
-        .viewer-count { color: #aaa; }
-
-        /* البطاقات الإدارية */
-        .card { 
-            background: var(--card-bg); 
-            padding: 25px; 
-            border-radius: 15px; 
-            margin-top: 20px;
-            border: 1px solid #333;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        input { 
+        #chatMessages {
             flex: 1;
-            padding: 12px 15px; 
-            background: #2a2d37;
-            border: 1px solid #444; 
-            border-radius: 8px; 
-            color: white;
+            overflow-y: auto;
+            padding: 15px;
             font-size: 14px;
-            outline: none;
-            transition: 0.3s;
         }
 
-        input:focus { border-color: var(--primary-color); }
+        .msg { margin-bottom: 10px; line-height: 1.4; }
+        .msg b { color: var(--accent); }
+        .msg.system { color: #888; font-style: italic; font-size: 12px; }
 
-        button { 
-            padding: 12px 20px; 
-            background-color: var(--primary-color); 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-weight: bold;
-            transition: 0.3s;
+        .chat-input {
+            padding: 10px;
             display: flex;
-            align-items: center;
-            gap: 8px;
+            gap: 5px;
+            border-top: 1px solid #444;
         }
 
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-        button.secondary { background-color: #444; }
-
-        .admin-badge {
-            background: rgba(229, 9, 20, 0.1);
-            color: var(--primary-color);
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            display: inline-block;
-            margin-bottom: 15px;
-            border: 1px solid var(--primary-color);
+        /* أدوات الإدارة */
+        .admin-panel {
+            margin-top: 15px;
+            background: #161b22;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px dashed var(--primary-color);
         }
 
-        #adminSection { display: none; }
+        .hidden { display: none !important; }
 
-        /* أنيميشن بسيط */
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+        /* أزرار ومدخلات */
+        input {
+            background: #0b0c10;
+            border: 1px solid #444;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            outline: none;
         }
-        .live-dot {
-            height: 8px;
-            width: 8px;
-            background-color: var(--primary-color);
-            border-radius: 50%;
-            display: inline-block;
-            animation: pulse 1.5s infinite;
+
+        button {
+            cursor: pointer;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: bold;
         }
+
+        .stats { font-size: 12px; color: var(--accent); margin-top: 5px; }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2 style="text-align: center; margin-bottom: 30px;">
-            <i class="fas fa-play-circle" style="color: var(--primary-color);"></i> StreamSync Pro
-        </h2>
-
+<div class="main-layout">
+    <div class="video-container">
         <div class="video-wrapper">
             <video id="myPlayer" controls playsinline></video>
         </div>
-        <div class="status-bar">
-            <div id="connectionStatus" class="status-online">
-                <span class="live-dot"></span> جاري المزامنة...
-            </div>
-            <div class="viewer-count">
-                <i class="fas fa-users"></i> وضع المشاهدة الجماعية
-            </div>
+        
+        <div class="stats">
+            <span id="viewCount"><i class="fas fa-eye"></i> جاري الحساب...</span> | 
+            <span id="syncStatus">متصل</span>
         </div>
 
-        <div class="card">
-            <div id="loginSection">
-                <h3 style="margin-top:0">لوحة التحكم بالبث</h3>
-                <p style="color: #aaa; font-size: 14px;">يجب تسجيل الدخول للتحكم في الفيديو لدى جميع المشاهدين.</p>
-                <div class="input-group">
-                    <input type="password" id="passwordInput" placeholder="أدخل كلمة السر">
-                    <button id="loginBtn">دخول</button>
-                </div>
-            </div>
+        <div id="loginArea" style="margin-top:10px;">
+            <input type="password" id="adminPass" placeholder="كلمة سر الإدارة">
+            <button onclick="checkAdmin()">دخول المسؤول</button>
+        </div>
 
-            <div id="adminSection">
-                <span class="admin-badge"><i class="fas fa-user-shield"></i> وضع المسؤول نشط</span>
-                <div class="input-group">
-                    <input type="text" id="videoUrl" placeholder="رابط الفيديو (Direct Link / M3U8)">
-                    <button id="updateBtn"><i class="fas fa-sync"></i> تحديث الكل</button>
-                </div>
-                <div style="margin-top: 20px; display: flex; gap: 10px;">
-                    <button class="secondary" onclick="syncForce()"><i class="fas fa-bullhorn"></i> إعادة مزامنة إجبارية</button>
-                    <button class="secondary" onclick="location.reload()" style="background: transparent; border: 1px solid #444;">خروج</button>
-                </div>
-            </div>
+        <div id="adminControls" class="admin-panel hidden">
+            <div style="margin-bottom:10px; color: var(--primary-color); font-weight:bold;">لوحة التحكم بالبث</div>
+            <input type="text" id="newVideoUrl" placeholder="رابط MP4 أو M3U8" style="width:70%">
+            <button onclick="updateVideo()">تحديث الرابط</button>
+            <button onclick="forceSyncAll()" style="background:#444">مزامنة إجبارية</button>
         </div>
     </div>
 
-    <script>
-        // 1. إعدادات Firebase
-        var firebaseConfig = {
-            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-            authDomain: "videos-5e336.firebaseapp.com",
-            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-            projectId: "videos-5e336",
-            storageBucket: "videos-5e336.firebasestorage.app",
-            messagingSenderId: "300218651134",
-            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-        };
+    <div class="chat-container">
+        <div class="chat-header">
+            <span>الدردشة المباشرة</span>
+            <i class="fas fa-comments"></i>
+        </div>
+        <div id="chatMessages"></div>
+        <div class="chat-input">
+            <input type="text" id="userName" placeholder="اسمك" style="width:60px">
+            <input type="text" id="chatMsg" placeholder="اكتب رسالة..." style="flex:1">
+            <button onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+</div>
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const videoRef = db.ref('sharedVideo');
-        const videoElement = document.getElementById('myPlayer');
-        let hls = new Hls();
-        let isAdmin = false;
-        let isInitialLoad = true;
+<script>
+    // 1. Firebase Configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
 
-        // تشغيل الوسائط
-        function playMedia(url) {
-            if (!url) return;
-            if (url.includes('m3u8') || !url.endsWith('.mp4')) {
-                if (Hls.isSupported()) {
-                    hls.destroy();
-                    hls = new Hls();
-                    hls.loadSource(url);
-                    hls.attachMedia(videoElement);
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => videoElement.play().catch(()=>{}));
-                }
-            } else {
-                videoElement.src = url;
-                videoElement.play().catch(()=>{});
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const videoRef = db.ref('sharedVideo');
+    const chatRef = db.ref('chat').limitToLast(50);
+    const presenceRef = db.ref('presence');
+    
+    const player = document.getElementById('myPlayer');
+    let hls = new Hls();
+    let isAdmin = false;
+
+    // --- نظام المشاهدين اللحظي ---
+    const myPresence = presenceRef.push();
+    myPresence.onDisconnect().remove();
+    myPresence.set(true);
+
+    presenceRef.on('value', snap => {
+        document.getElementById('viewCount').innerHTML = `<i class="fas fa-eye"></i> مشاهدات الآن: ${snap.numChildren()}`;
+    });
+
+    // --- نظام الفيديو والمزامنة ---
+    function loadVideo(url) {
+        if (!url) return;
+        if (url.includes('m3u8')) {
+            if (Hls.isSupported()) {
+                hls.destroy(); hls = new Hls();
+                hls.loadSource(url); hls.attachMedia(player);
             }
+        } else {
+            player.src = url;
+        }
+    }
+
+    videoRef.on('value', snap => {
+        const data = snap.val();
+        if (!data) return;
+
+        if (player.dataset.src !== data.url) {
+            player.dataset.src = data.url;
+            loadVideo(data.url);
         }
 
-        // استقبال البيانات من Firebase
-        videoRef.on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (!data) return;
-
-            // تحديث الرابط إذا تغير
-            if (videoElement.dataset.currentSrc !== data.url) {
-                videoElement.dataset.currentSrc = data.url;
-                playMedia(data.url);
-            }
-
-            // المزامنة للمشاهدين فقط
-            if (!isAdmin) {
-                // مزامنة حالة التشغيل
-                if (data.paused && !videoElement.paused) {
-                    videoElement.pause();
-                } else if (!data.paused && videoElement.paused) {
-                    videoElement.play().catch(()=>{});
-                }
-
-                // مزامنة الوقت (إذا كان الفرق أكبر من ثانية واحدة)
-                const timeDiff = Math.abs(videoElement.currentTime - data.currentTime);
-                if (timeDiff > 1.2) {
-                    videoElement.currentTime = data.currentTime;
-                }
-            }
-            
-            document.getElementById('connectionStatus').innerHTML = '<span class="live-dot" style="background-color:#00d1b2"></span> متصل ومزامن ✅';
-        });
-
-        // إرسال الحالة (للأدمن)
-        function broadcastStatus() {
-            if (isAdmin) {
-                videoRef.update({
-                    currentTime: videoElement.currentTime,
-                    paused: videoElement.paused,
-                    timestamp: Date.now()
-                });
+        if (!isAdmin) {
+            if (data.paused && !player.paused) player.pause();
+            if (!data.paused && player.paused) player.play().catch(()=>{});
+            if (Math.abs(player.currentTime - data.time) > 1.5) {
+                player.currentTime = data.time;
             }
         }
+    });
 
-        // أحداث الفيديو للأدمن
-        videoElement.addEventListener('play', broadcastStatus);
-        videoElement.addEventListener('pause', broadcastStatus);
-        videoElement.addEventListener('seeking', broadcastStatus);
-
-        // تحديث دوري ذكي (كل ثانية للأدمن)
-        setInterval(() => {
-            if (isAdmin && !videoElement.paused) {
-                broadcastStatus();
-            }
-        }, 1000);
-
-        // تسجيل الدخول
-        document.getElementById('loginBtn').addEventListener('click', () => {
-            const pass = document.getElementById('passwordInput').value;
-            if (pass === "1234") { // كلمة السر
-                isAdmin = true;
-                document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('adminSection').style.display = 'block';
-                alert("مرحباً بك أيها المسؤول!");
-            } else {
-                alert("كلمة السر خاطئة!");
-            }
-        });
-
-        // تحديث الرابط
-        document.getElementById('updateBtn').addEventListener('click', () => {
-            const url = document.getElementById('videoUrl').value;
-            if (url && isAdmin) {
-                videoRef.set({
-                    url: url,
-                    currentTime: 0,
-                    paused: false,
-                    timestamp: Date.now()
-                });
-            }
-        });
-
-        function syncForce() {
-            if(isAdmin) {
-                broadcastStatus();
-                alert("تم إرسال إشارة مزامنة إجبارية للجميع");
-            }
+    function broadcast() {
+        if (isAdmin) {
+            videoRef.update({
+                time: player.currentTime,
+                paused: player.paused,
+                lastUpdate: Date.now()
+            });
         }
-    </script>
+    }
+
+    player.onplay = player.onpause = player.onseeking = broadcast;
+    setInterval(() => { if(isAdmin && !player.paused) broadcast(); }, 2000);
+
+    // --- نظام الدردشة ---
+    function sendChat() {
+        const name = document.getElementById('userName').value || "مجهول";
+        const text = document.getElementById('chatMsg').value;
+        if (!text) return;
+        chatRef.parent.child('chat').push({ name, text, time: Date.now() });
+        document.getElementById('chatMsg').value = "";
+    }
+
+    chatRef.on('child_added', snap => {
+        const msg = snap.val();
+        const div = document.createElement('div');
+        div.className = 'msg';
+        div.innerHTML = `<b>${msg.name}:</b> ${msg.text}`;
+        const container = document.getElementById('chatMessages');
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    });
+
+    // --- وظائف المسؤول ---
+    function checkAdmin() {
+        if (document.getElementById('adminPass').value === "1234") {
+            isAdmin = true;
+            document.getElementById('loginArea').classList.add('hidden');
+            document.getElementById('adminControls').classList.remove('hidden');
+            chatRef.parent.child('chat').push({ name: "النظام", text: "دخل المسؤول إلى الغرفة", type: "system" });
+        }
+    }
+
+    function updateVideo() {
+        const url = document.getElementById('newVideoUrl').value;
+        if (url) videoRef.set({ url, time: 0, paused: false });
+    }
+
+    function forceSyncAll() {
+        if (isAdmin) broadcast();
+    }
+</script>
 </body>
 </html>
