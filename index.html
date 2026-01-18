@@ -1,62 +1,61 @@
 <!DOCTYPE html>
-<html dir="rtl">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Magnet Player Pro</title>
-    <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    <title>مشغل روابط Magnet مباشر</title>
     <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; text-align: center; }
-        #video-player { width: 95%; max-width: 800px; margin: 20px auto; border: 2px solid #333; }
-        .info { font-size: 14px; color: #aaa; margin-top: 10px; }
-        #log { font-family: monospace; font-size: 12px; color: #0f0; }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; }
+        #video-container { margin-top: 20px; background: #000; min-height: 400px; display: flex; align-items: center; justify-content: center; border: 2px dashed #444; }
+        video { width: 100%; max-width: 800px; }
+        input { width: 80%; padding: 10px; border-radius: 5px; border: none; margin-bottom: 10px; }
+        button { padding: 10px 20px; cursor: pointer; background: #2ecc71; border: none; color: white; font-weight: bold; border-radius: 5px; }
+        #status { margin: 10px; color: #aaa; font-size: 0.9em; }
     </style>
 </head>
 <body>
 
-    <h3>مشغل الماغنت المتطور</h3>
-    <div id="video-player">
-        <p id="msg">انتظار إضافة الرابط...</p>
-    </div>
+    <h2>مشغل فيديو Magnet 🚀</h2>
+    <input type="text" id="magnetLink" placeholder="أدخل رابط الـ Magnet هنا...">
+    <br>
+    <button onclick="startDownload()">تشغيل الفيديو</button>
     
-    <div class="info">
-        السرعة: <span id="speed">0</span> MB/s | 
-        الموزعين: <span id="peers">0</span>
-    </div>
-    <div id="log"></div>
+    <div id="status">انتظار الرابط...</div>
+    
+    <div id="video-container">
+        </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    
     <script>
         const client = new WebTorrent();
         
-        // الرابط اللي أرسلته
-        const myMagnet = "magnet:?xt=urn:btih:D745D479E6CD56D5F7DDB2F35970EF7FE1311788&dn=Zootopia%202%202025%201080p%20Multi%20READNFO%20HEVC%20x265-RMTeam&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com";
+        function startDownload() {
+            const magnetURI = document.getElementById('magnetLink').value;
+            const status = document.getElementById('status');
+            const container = document.getElementById('video-container');
 
-        // إضافة تراكرز WebSockets اختيارية لدعم المتصفح
-        const trackers = [
-            'wss://tracker.btorrent.xyz',
-            'wss://tracker.openwebtorrent.com',
-            'wss://tracker.fastcast.nz'
-        ];
+            if (!magnetURI) {
+                alert("الرجاء وضع رابط أولاً!");
+                return;
+            }
 
-        function start() {
-            document.getElementById('msg').innerText = "جاري البحث عن Peers يدعمون المتصفح...";
-            
-            client.add(myMagnet, { announce: trackers }, function (torrent) {
-                const file = torrent.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv'));
-                
-                if (file) {
-                    document.getElementById('video-player').innerHTML = '';
-                    file.appendTo('#video-player', { autoplay: true, controls: true });
-                }
+            status.innerText = "جاري الاتصال بالموزعين (Peers)... يرجى الانتظار";
 
-                torrent.on('download', () => {
-                    document.getElementById('speed').innerText = (torrent.downloadSpeed / (1024 * 1024)).toFixed(2);
-                    document.getElementById('peers').innerText = torrent.numPeers;
+            client.add(magnetURI, function (torrent) {
+                // البحث عن أول ملف فيديو داخل التورنت
+                const file = torrent.files.find(function (file) {
+                    return file.name.endsWith('.mp4') || file.name.endsWith('.mkv') || file.name.endsWith('.webm');
                 });
+
+                if (file) {
+                    status.innerText = "جاري تشغيل: " + file.name;
+                    container.innerHTML = ''; // تنظيف الحاوية
+                    file.appendTo('#video-container', { autoplay: true, controls: true });
+                } else {
+                    status.innerText = "لم يتم العثور على ملف فيديو مدعوم.";
+                }
             });
         }
-
-        // تشغيل تلقائي
-        start();
     </script>
 </body>
 </html>
